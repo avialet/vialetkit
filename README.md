@@ -25,7 +25,7 @@ Aucune dépendance externe. Swift 6, macOS 15 ou plus récent (les apps visent m
 
 ```swift
 // Package.swift
-.package(url: "https://github.com/avialet/vialetkit.git", .upToNextMinor(from: "0.2.0"))
+.package(url: "https://github.com/avialet/vialetkit.git", .upToNextMinor(from: "0.2.1"))
 // En 0.x, un changement cassant monte le mineur : epingler le mineur, pas `from:` (= < 1.0.0).
 ```
 
@@ -82,6 +82,8 @@ produit une app déjà branchée sur le kit.
 En 0.x, un changement d'API incompatible monte le numéro mineur ; chaque app met à jour son
 `Package.swift` quand elle est prête. La 0.2.0 rend `Theme.display` isolé au `MainActor`
 (à appeler depuis une vue) et le fait passer du serif à Bricolage Grotesque.
+La 0.2.1 ajoute, sans rien casser, le relâchement du raccourci et le panneau qui ne prend pas
+le focus (voir « Raccourci et panneau flottant »).
 
 ## Glyphe
 
@@ -156,6 +158,24 @@ struct SettingsView: View {
 ```
 
 Sans carte propre à l'app, la fermeture `extra` s'omet.
+
+## Raccourci et panneau flottant
+
+- `HotKeyController.start(action:onRelease:)` : `onRelease` (facultatif) est appelé au
+  relâchement du raccourci, pour un push-to-talk. `start { }` seul garde le comportement
+  d'avant et efface un `onRelease` précédent.
+- `FloatingPanelController(size:takesFocus:placement:content:)` : avec `takesFocus: false`, le
+  panneau ne devient jamais clé, s'affiche par-dessus l'app active sans l'activer ni lui prendre
+  la frappe et ne se ferme pas quand on clique ailleurs ; ses boutons restent cliquables.
+  `placement: .bottom` le pose au-dessus du bas de l'écran (bas à 10 % de la hauteur visible),
+  `.upperThird` (défaut) garde la position de palette.
+
+```swift
+let listening = FloatingPanelController(size: CGSize(width: 320, height: 72),
+                                        takesFocus: false, placement: .bottom) { ListeningView() }
+hotKey.start(action: { recorder.begin(); listening.show() },
+             onRelease: { recorder.end(); listening.hide() })
+```
 
 ## Capture
 
