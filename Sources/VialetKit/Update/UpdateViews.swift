@@ -98,9 +98,9 @@ public struct UpdateCard: View {
                 .padding(10)
                 .background(RoundedRectangle(cornerRadius: Theme.Radius.row, style: .continuous).fill(Theme.ink.opacity(0.05)))
             }
-            Toggle("Rechercher automatiquement (au lancement, puis toutes les 6 h)", isOn: $updater.autoCheck)
+            Toggle("Rechercher automatiquement", isOn: $updater.autoCheck)
             if let last = updater.lastCheck {
-                Text("Dernière recherche : \(last.formatted(.relative(presentation: .named)))")
+                Text("Au lancement, puis toutes les 6 h. Dernière recherche : \(last.formatted(.relative(presentation: .named)))")
                     .font(Theme.ui(11.5)).foregroundStyle(Theme.inkFaint)
             }
             Text("Le seul échange réseau de \(name) : la lecture de la dernière version publiée sur GitHub. Aucune donnée n'est envoyée.")
