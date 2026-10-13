@@ -17,4 +17,5 @@ run([
     surfacesTests,
     snapshotArgsTests,
     floatingPanelTests,
+    menuBarPresenceTests,
 ])
