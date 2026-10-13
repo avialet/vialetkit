@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import SwiftUI
 import VialetKit
 
 private func parse(_ args: [String]) -> SnapshotRequest? {
@@ -69,6 +70,38 @@ let snapshotArgsTests: (String, [Test]) = ("SnapshotArgs", [
                 expectEqual(pixel?.alphaComponent ?? -1, alpha, "\(background)")
                 if alpha == 1 { expect((pixel?.redComponent ?? 0) > 0.9, "fond rouge : \(String(describing: pixel))") }
             }
+        }
+    },
+    Test("windowSnapshotShadowFallsDown") {
+        // Ombre SwiftUI y +20 : a l'ecran elle descend ; la capture doit la rendre sous la carte, contenu a l'endroit.
+        try MainActor.assumeIsolated {
+            let url = FileManager.default.temporaryDirectory
+                .appendingPathComponent("vialetkit-check-\(UInt32.random(in: 0...UInt32.max)).png")
+            defer { try? FileManager.default.removeItem(at: url) }
+            let card = VStack(spacing: 0) {
+                Rectangle().fill(Color(red: 0, green: 1, blue: 0)).frame(width: 60, height: 10)
+                Rectangle().fill(Color(red: 1, green: 0, blue: 0)).frame(width: 60, height: 10)
+            }
+            .shadow(color: .black, radius: 2, x: 0, y: 20)
+            .frame(width: 120, height: 120)
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 120, height: 120), styleMask: [.borderless],
+                                  backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false
+            window.backgroundColor = .clear
+            window.contentView = NSHostingView(rootView: card)
+            window.contentView?.layoutSubtreeIfNeeded()
+            try WindowSnapshot.write(window, to: url)
+            guard let rep = NSBitmapImageRep(data: try Data(contentsOf: url)) else {
+                expect(false, "PNG illisible"); return
+            }
+            // Carte de y 50 a 70 (points, haut = 0) ; ombre attendue de 70 a 90, rien au-dessus.
+            let scale = rep.pixelsWide / 120
+            func pixel(_ y: Int) -> NSColor? { rep.colorAt(x: 60 * scale, y: y * scale) }
+            let above = pixel(40)?.alphaComponent ?? -1
+            let below = pixel(80)?.alphaComponent ?? -1
+            expect(below > 0.5 && above < 0.1, "ombre sous la carte : dessus \(above), dessous \(below)")
+            expect((pixel(55)?.greenComponent ?? 0) > 0.8 && (pixel(65)?.redComponent ?? 0) > 0.8,
+                   "contenu a l'endroit (vert en haut, rouge en bas)")
         }
     },
     Test("notRequestedDoesNothing") {
