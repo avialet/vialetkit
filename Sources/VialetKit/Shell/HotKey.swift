@@ -103,6 +103,9 @@ public final class GlobalHotKey {
     public var action: (() -> Void)?
     /// Appele au relachement (push-to-talk) ; nil : le relachement est ignore.
     public var onRelease: (() -> Void)?
+    /// Vrai entre l'appui et le relachement. Carbon n'envoie plus le relachement d'un raccourci
+    /// desenregistre : `unregister()` le simule alors une fois (dictee jamais bloquee en ecoute).
+    public private(set) var isDown = false
     private var ref: EventHotKeyRef?
     private var handlerInstalled = false
 
@@ -119,17 +122,25 @@ public final class GlobalHotKey {
         return status == noErr
     }
 
+    /// Desenregistre le raccourci ; s'il est maintenu, appelle `onRelease` une fois.
     public func unregister() {
         if let ref { UnregisterEventHotKey(ref) }
         ref = nil
+        if isDown { handle(.released) }
     }
 
-    /// Point d'entree du gestionnaire Carbon : l'appui declenche `action`, le relachement `onRelease`.
+    /// Point d'entree du gestionnaire Carbon : l'appui declenche `action`, le relachement `onRelease`
+    /// (une seule fois par appui : un relachement sans appui en cours est ignore).
     /// Public pour les tests (et pour simuler le raccourci).
     public func handle(_ kind: HotKeyEventKind) {
         switch kind {
-        case .pressed: action?()
-        case .released: onRelease?()
+        case .pressed:
+            isDown = true
+            action?()
+        case .released:
+            guard isDown else { return }
+            isDown = false
+            onRelease?()
         }
     }
 
