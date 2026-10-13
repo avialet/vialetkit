@@ -6,4 +6,5 @@ run([
     appInfoTests,
     textTests,
     paletteTests,
+    fontsTests,
 ])

@@ -29,8 +29,10 @@ public enum Theme {
     @MainActor public static private(set) var palette: AccentPalette = .sea
 
     /// A appeler une fois au lancement (init de l'App), avant le premier rendu.
+    /// Enregistre aussi Bricolage Grotesque pour `display` (repli SF Rounded en cas d'echec).
     @MainActor public static func configure(_ palette: AccentPalette) {
         self.palette = palette
+        Fonts.register()
     }
 
     @MainActor public static var accent: Color { palette.color }
@@ -103,8 +105,19 @@ public enum Theme {
     public static let stone = Color(hex: 0x8A8F98)
     public static let danger = Color(hex: 0xE5484D)
 
-    /// Titres : serif editorial (New York).
-    public static func display(_ size: CGFloat, weight: Font.Weight = .bold) -> Font {
+    // MARK: Typographie
+
+    /// Titres : Bricolage Grotesque embarquee (ExtraBold pour `.bold` et plus gras,
+    /// SemiBold sinon), comme les sites ; SF Rounded `.heavy` si la police n'est pas
+    /// enregistree (`configure` pas encore appele, ou echec). Le texte courant reste en `ui`.
+    @MainActor public static func display(_ size: CGFloat, weight: Font.Weight = .bold) -> Font {
+        guard Fonts.registered else { return .system(size: size, weight: .heavy, design: .rounded) }
+        let heavy = weight == .bold || weight == .heavy || weight == .black
+        return .custom(heavy ? Fonts.extraBoldName : Fonts.semiBoldName, size: size)
+    }
+
+    /// Ancien `display` (serif editorial, New York), garde pour la transition de Pico.
+    public static func serif(_ size: CGFloat, weight: Font.Weight = .bold) -> Font {
         .system(size: size, weight: weight, design: .serif)
     }
 
