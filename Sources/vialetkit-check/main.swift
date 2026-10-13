@@ -3,6 +3,7 @@ import VialetKit
 run([
     updateTests,
     updateScheduleTests,
+    releaseNotesTests,
     hotKeyTests,
     appInfoTests,
     textTests,
