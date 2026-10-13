@@ -12,4 +12,5 @@ run([
     appIdentityTests,
     aboutPanelTests,
     surfacesTests,
+    snapshotArgsTests,
 ])
