@@ -47,4 +47,9 @@ let releaseNotesTests: (String, [Test]) = ("ReleaseNotes", [
         expectEqual(ReleaseInfo.notesBody(json: json), "## Pico 0.2.0\n\n- A\n- B")
         expect(ReleaseInfo.notesBody(json: Data("[]".utf8)) == nil)
     },
+    Test("onlyMarkdownHeadingsAreDropped") {
+        let notes = ReleaseNotes(markdown: "#\n####### pas un titre\n#42 corrige le bandeau\n\n- Point")
+        expectEqual(notes.summary, "####### pas un titre #42 corrige le bandeau")
+        expectEqual(ReleaseNotes(markdown: "- Un\n#42 suite").bullets, ["Un #42 suite"])
+    },
 ])

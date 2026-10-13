@@ -21,7 +21,7 @@ public struct ReleaseNotes: Equatable, Sendable {
             let line = raw.trimmingCharacters(in: .whitespaces)
             if line.isEmpty { inBullet = false; continue }
             // Titres et filets (`---`) : retires.
-            if line.hasPrefix("#") || (line.count >= 3 && line.allSatisfy({ "-*_ ".contains($0) })) {
+            if Self.isHeading(line) || (line.count >= 3 && line.allSatisfy({ "-*_ ".contains($0) })) {
                 inBullet = false; continue
             }
             if let marker = line.first, "-*+".contains(marker), line.dropFirst().first == " " {
@@ -37,6 +37,14 @@ public struct ReleaseNotes: Equatable, Sendable {
         }
         self.summary = summary.joined(separator: " ")
         self.bullets = bullets
+    }
+
+    /// Titre markdown : 1 a 6 `#` suivis d'une espace ou de la fin de ligne (`#42` n'en est pas un).
+    static func isHeading(_ line: String) -> Bool {
+        let hashes = line.prefix(while: { $0 == "#" }).count
+        guard (1...6).contains(hashes) else { return false }
+        let rest = line.dropFirst(hashes)
+        return rest.isEmpty || rest.first == " " || rest.first == "\t"
     }
 
     /// Une puce (ou le chapeau) en texte riche : gras, italique, `code` et liens ; texte brut si
