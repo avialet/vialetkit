@@ -10,4 +10,5 @@ run([
     paletteMixTests,
     glyphTests,
     appIdentityTests,
+    aboutPanelTests,
 ])
