@@ -120,8 +120,12 @@ public enum Theme {
     /// enregistree (`configure` pas encore appele, ou echec). Le texte courant reste en `ui`.
     @MainActor public static func display(_ size: CGFloat, weight: Font.Weight = .bold) -> Font {
         guard Fonts.registered else { return .system(size: size, weight: .heavy, design: .rounded) }
-        let heavy = weight == .bold || weight == .heavy || weight == .black
-        return .custom(heavy ? Fonts.extraBoldName : Fonts.semiBoldName, size: size)
+        return .custom(displayFaceName(for: weight), size: size)
+    }
+
+    /// Face de `display` : ExtraBold pour `.bold`, `.heavy`, `.black`, SemiBold sinon.
+    static func displayFaceName(for weight: Font.Weight) -> String {
+        weight == .bold || weight == .heavy || weight == .black ? Fonts.extraBoldName : Fonts.semiBoldName
     }
 
     /// Ancien `display` (serif editorial, New York), garde pour la transition de Pico.

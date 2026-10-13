@@ -1,4 +1,6 @@
+import AppKit
 import Foundation
+import SwiftUI
 import VialetKit
 
 /// Palettes reelles des apps (Brand.swift), calculees par scripts/teintes.py.
@@ -44,12 +46,33 @@ let paletteTests: (String, [Test]) = ("Palette", [
         }
     },
     Test("tokensKeepCurrentValues") {
-        expectEqual(Theme.Radius.icon, 7)
-        expectEqual(Theme.Radius.row, 10)
-        expectEqual(Theme.Radius.item, 12)
-        expectEqual(Theme.Radius.card, 16)
-        expectEqual(Theme.Space.l, 16)
+        expectEqual([Theme.Radius.key, Theme.Radius.icon, Theme.Radius.chip, Theme.Radius.row,
+                     Theme.Radius.item, Theme.Radius.card, Theme.Radius.editor, Theme.Radius.panel],
+                    [4, 7, 8, 10, 12, 16, 18, 22], "Radius")
+        expectEqual([Theme.Space.xs, Theme.Space.s, Theme.Space.m, Theme.Space.l, Theme.Space.xl, Theme.Space.xxl],
+                    [4, 8, 12, 16, 20, 26], "Space")
         expectEqual(Theme.Shadow.panel.radius, 18)
+        expectEqual(Theme.Shadow.panel.y, 8)
+        expectEqual(NSColor(Theme.Shadow.panel.color).alphaComponent, 0.22, "ombre")
+    },
+    Test("primaryButtonFollowsAppearance") {
+        MainActor.assumeIsolated {
+            let p = realPalettes[3].1 // Brouillon : accent different de deep et de blanc
+            Theme.configure(p)
+            let bg = Theme.accentPrimaryButtonBackground, fg = Theme.accentPrimaryButtonForeground
+            expectEqual(hex(bg, dark: false), p.deep, "fond clair")
+            expectEqual(hex(fg, dark: false), 0xFFFFFF, "texte clair")
+            expectEqual(hex(bg, dark: true), p.background, "fond sombre")
+            expectEqual(hex(fg, dark: true), p.deep, "texte sombre")
+            Theme.configure(.sea)
+        }
+    },
+    Test("accentSelectionIsAccentAt14Percent") {
+        MainActor.assumeIsolated {
+            let c = NSColor(Theme.accentSelection).usingColorSpace(.sRGB)
+            expect(abs((c?.alphaComponent ?? 0) - 0.14) < 0.001, "alpha \(String(describing: c?.alphaComponent))")
+            expectEqual(c.map { rgb($0) }, Theme.palette.accent, "teinte")
+        }
     },
 ])
 
@@ -60,3 +83,17 @@ let paletteMixTests: (String, [Test]) = ("PaletteMix", [
         expectEqual(AccentPalette.mix(0x14161B, 0x0F1A2F, fraction: 0.35), 0x121722)
     },
 ])
+
+/// Hex sRGB d'une couleur resolue dans l'apparence claire ou sombre (alpha ignore).
+private func hex(_ color: Color, dark: Bool) -> UInt32 {
+    var out: UInt32 = 0
+    NSAppearance(named: dark ? .darkAqua : .aqua)!.performAsCurrentDrawingAppearance {
+        out = NSColor(color).usingColorSpace(.sRGB).map { rgb($0) } ?? 0xDEAD
+    }
+    return out
+}
+
+private func rgb(_ c: NSColor) -> UInt32 {
+    func byte(_ v: CGFloat) -> UInt32 { UInt32((min(max(v, 0), 1) * 255).rounded()) }
+    return byte(c.redComponent) << 16 | byte(c.greenComponent) << 8 | byte(c.blueComponent)
+}
