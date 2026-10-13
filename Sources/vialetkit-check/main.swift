@@ -18,4 +18,7 @@ run([
     snapshotArgsTests,
     floatingPanelTests,
     menuBarPresenceTests,
+    appURLTests,
+    appActionsTests,
+    hubManifestTests,
 ])
