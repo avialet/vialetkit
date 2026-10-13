@@ -32,4 +32,67 @@ let hotKeyTests: (String, [Test]) = ("HotKey", [
         let data = try JSONEncoder().encode(s)
         expectEqual(try JSONDecoder().decode(HotKeyShortcut.self, from: data), s)
     },
+    Test("eventKindFromCarbon") {
+        expectEqual(HotKeyEventKind(carbonKind: UInt32(kEventHotKeyPressed)), .pressed)
+        expectEqual(HotKeyEventKind(carbonKind: UInt32(kEventHotKeyReleased)), .released)
+        expectEqual(HotKeyEventKind(carbonKind: 0), nil)
+    },
+    Test("pressCallsActionReleaseCallsOnRelease") {
+        MainActor.assumeIsolated {
+            let hotKey = GlobalHotKey.shared
+            let saved = (hotKey.action, hotKey.onRelease)
+            defer { hotKey.action = saved.0; hotKey.onRelease = saved.1 }
+            var log: [String] = []
+            hotKey.action = { log.append("down") }
+            hotKey.onRelease = { log.append("up") }
+            hotKey.handle(.pressed)
+            hotKey.handle(.released)
+            expectEqual(log, ["down", "up"])
+            hotKey.onRelease = nil
+            hotKey.handle(.released)
+            expectEqual(log, ["down", "up"])
+        }
+    },
+    Test("startWithoutOnReleaseKeepsPressOnly") {
+        MainActor.assumeIsolated {
+            let key = "VialetKitCheck\(UInt32.random(in: 0...UInt32.max))HotKey"
+            defer { UserDefaults.standard.removeObject(forKey: key) }
+            let hotKey = GlobalHotKey.shared
+            let saved = (hotKey.action, hotKey.onRelease)
+            defer { hotKey.action = saved.0; hotKey.onRelease = saved.1 }
+            let controller = HotKeyController(defaultsKey: key, logName: "check", initial: unusedShortcut)
+            var presses = 0
+            var staleRelease = false
+            hotKey.onRelease = { staleRelease = true }
+            controller.start { presses += 1 }
+            defer { controller.suspend() }
+            expect(hotKey.onRelease == nil, "start(action:) doit effacer un onRelease precedent")
+            hotKey.handle(.pressed)
+            hotKey.handle(.released)
+            expectEqual(presses, 1)
+            expect(!staleRelease)
+        }
+    },
+    Test("startWithOnReleaseWiresBoth") {
+        MainActor.assumeIsolated {
+            let key = "VialetKitCheck\(UInt32.random(in: 0...UInt32.max))HotKey"
+            defer { UserDefaults.standard.removeObject(forKey: key) }
+            let hotKey = GlobalHotKey.shared
+            let saved = (hotKey.action, hotKey.onRelease)
+            defer { hotKey.action = saved.0; hotKey.onRelease = saved.1 }
+            let controller = HotKeyController(defaultsKey: key, logName: "check", initial: unusedShortcut)
+            var log: [String] = []
+            controller.start(action: { log.append("down") }, onRelease: { log.append("up") })
+            defer { controller.suspend() }
+            hotKey.handle(.pressed)
+            hotKey.handle(.released)
+            expectEqual(log, ["down", "up"])
+        }
+    },
 ])
+
+/// Ctrl-Option-Maj-Cmd-F19 : combinaison que personne n'utilise, pour enregistrer un vrai raccourci pendant les tests.
+private let unusedShortcut = HotKeyShortcut(
+    keyCode: UInt16(kVK_F19),
+    modifiers: NSEvent.ModifierFlags([.command, .option, .control, .shift]).rawValue,
+    keyName: "F19")

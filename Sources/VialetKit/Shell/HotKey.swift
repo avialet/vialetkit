@@ -79,12 +79,30 @@ public struct HotKeyShortcut: Codable, Equatable, Sendable {
     }
 }
 
+/// Appui ou relachement du raccourci global, d'apres le genre d'evenement Carbon.
+public enum HotKeyEventKind: Equatable, Sendable {
+    case pressed
+    case released
+
+    /// `kEventHotKeyPressed` ou `kEventHotKeyReleased` ; nil pour tout autre genre.
+    public init?(carbonKind: UInt32) {
+        switch carbonKind {
+        case UInt32(kEventHotKeyPressed): self = .pressed
+        case UInt32(kEventHotKeyReleased): self = .released
+        default: return nil
+        }
+    }
+}
+
 /// Enregistrement Carbon : seul moyen d'avoir un raccourci global sans
 /// demander l'autorisation d'accessibilite. Un seul raccourci par app.
 @MainActor
 public final class GlobalHotKey {
     public static let shared = GlobalHotKey()
+    /// Appele a l'appui sur le raccourci.
     public var action: (() -> Void)?
+    /// Appele au relachement (push-to-talk) ; nil : le relachement est ignore.
+    public var onRelease: (() -> Void)?
     private var ref: EventHotKeyRef?
     private var handlerInstalled = false
 
@@ -106,15 +124,30 @@ public final class GlobalHotKey {
         ref = nil
     }
 
+    /// Point d'entree du gestionnaire Carbon : l'appui declenche `action`, le relachement `onRelease`.
+    /// Public pour les tests (et pour simuler le raccourci).
+    public func handle(_ kind: HotKeyEventKind) {
+        switch kind {
+        case .pressed: action?()
+        case .released: onRelease?()
+        }
+    }
+
     private func installHandler() {
         guard !handlerInstalled else { return }
-        var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
-        InstallEventHandler(GetApplicationEventTarget(), { _, _, _ in
+        var specs = [
+            EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed)),
+            EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyReleased)),
+        ]
+        InstallEventHandler(GetApplicationEventTarget(), { _, event, _ in
+            guard let event, let kind = HotKeyEventKind(carbonKind: GetEventKind(event)) else {
+                return OSStatus(eventNotHandledErr)
+            }
             DispatchQueue.main.async {
-                MainActor.assumeIsolated { GlobalHotKey.shared.action?() }
+                MainActor.assumeIsolated { GlobalHotKey.shared.handle(kind) }
             }
             return noErr
-        }, 1, &spec, nil, nil)
+        }, specs.count, &specs, nil, nil)
         handlerInstalled = true
     }
 }
@@ -151,9 +184,11 @@ public final class HotKeyController {
         }
     }
 
-    /// Enregistre le raccourci et l'action a declencher.
-    public func start(action: @escaping () -> Void) {
+    /// Enregistre le raccourci, l'action a declencher a l'appui et, si fournie, celle du relachement
+    /// (push-to-talk). Remplace les deux : `start { }` seul efface un `onRelease` precedent.
+    public func start(action: @escaping () -> Void, onRelease: (@MainActor () -> Void)? = nil) {
         GlobalHotKey.shared.action = action
+        GlobalHotKey.shared.onRelease = onRelease
         apply()
     }
 
