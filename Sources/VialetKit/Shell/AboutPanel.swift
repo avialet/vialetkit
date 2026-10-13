@@ -40,7 +40,7 @@ public enum AboutPanel {
             text.append(NSAttributedString(string: s, attributes: attrs))
         }
         append("Un projet d'\(identity.author)\nLicence \(identity.license)\n")
-        append("\(identity.name.lowercased()).vialet.app", link: identity.siteURL)
+        append(identity.siteURL.host() ?? identity.siteURL.absoluteString, link: identity.siteURL)
         append("\n")
         append("Code source sur GitHub", link: identity.repositoryURL)
         return text

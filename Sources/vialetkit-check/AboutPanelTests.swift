@@ -11,6 +11,16 @@ let aboutPanelTests: (String, [Test]) = ("AboutPanel", [
             }
         }
     },
+    Test("creditsShowOverriddenSite") {
+        MainActor.assumeIsolated {
+            let hub = AppIdentity(name: "Vialet", displayName: "Vialet", repository: "avialet/vialet",
+                                  bundleIdentifier: "fr.vialet.vialet", palette: .sea, glyph: "",
+                                  site: URL(string: "https://vialet.app")!)
+            let s = AboutPanel.credits(hub).string
+            expect(s.contains("\nvialet.app\n"), s)
+            expect(!s.contains("vialet.vialet.app"), s)
+        }
+    },
     Test("creditsCarryTwoLinks") {
         MainActor.assumeIsolated {
             let credits = AboutPanel.credits(allegeIdentity)
