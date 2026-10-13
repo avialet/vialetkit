@@ -26,7 +26,7 @@ Aucune dépendance externe. Swift 6, macOS 15 ou plus récent (les apps visent m
 
 ```swift
 // Package.swift
-.package(url: "https://github.com/avialet/vialetkit.git", .upToNextMinor(from: "0.2.2"))
+.package(url: "https://github.com/avialet/vialetkit.git", .upToNextMinor(from: "0.2.3"))
 // En 0.x, un changement cassant monte le mineur : epingler le mineur, pas `from:` (= < 1.0.0).
 ```
 
@@ -89,6 +89,16 @@ La 0.2.2 ajoute, sans rien casser, le bandeau d'annonce des mises à jour et leu
 (voir « Annoncer les mises à jour »).
 
 ## Annoncer les mises à jour
+
+Dans le menu de l'app, sous « À propos », l'entrée « Rechercher les mises à jour… » (0.2.3) : une mise à jour
+trouvée ramène la fenêtre principale et son bandeau ; sinon une alerte dit que l'app est à jour.
+
+```swift
+.commands {
+    AboutCommands(identity: Brand.identity)
+    UpdateCommands(updater: .shared)
+}
+```
 
 Une ligne dans l'app, en haut de la fenêtre principale (ou d'un panneau), dans une pile sans
 espacement :
