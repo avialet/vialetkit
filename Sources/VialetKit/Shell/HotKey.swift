@@ -17,6 +17,16 @@ public struct HotKeyShortcut: Codable, Equatable, Sendable {
         modifiers: NSEvent.ModifierFlags([.command, .shift]).rawValue,
         keyName: "Espace")
 
+    /// Espace avec d'autres modificateurs : la touche est la meme sur toutes les dispositions de clavier,
+    /// contrairement aux lettres (kVK_ANSI_A est la touche Q d'un clavier AZERTY). Chaque app choisit
+    /// une combinaison libre ; eviter ⌘Espace (Spotlight), ⌥⌘Espace (Finder), ⌃⌘Espace (emoji)
+    /// et ⌃⌥Espace (source de saisie suivante).
+    public static func space(_ modifiers: NSEvent.ModifierFlags) -> HotKeyShortcut {
+        HotKeyShortcut(keyCode: UInt16(kVK_Space),
+                       modifiers: modifiers.intersection([.command, .option, .control, .shift]).rawValue,
+                       keyName: "Espace")
+    }
+
     public var flags: NSEvent.ModifierFlags { NSEvent.ModifierFlags(rawValue: modifiers) }
 
     public var carbonModifiers: UInt32 {

@@ -136,6 +136,8 @@ public final class Updater {
             return
         }
         let configuration = configuration
+        // Occupe des maintenant : un second clic sur « Installer » (ou un check) ne lance pas une installation parallele.
+        state = .downloading(0)
         task = Task { [weak self] in
             guard let self else { return }
             do {
