@@ -189,4 +189,16 @@ let updateNoticeTests: (String, [Test]) = ("UpdateNotice", [
         expect(!Updater.shouldFetchUpdatedNotes(updatedVersion: v, hasNotes: false, autoCheck: false, willCheck: false))
         expect(!Updater.shouldFetchUpdatedNotes(updatedVersion: nil, hasNotes: false, autoCheck: true, willCheck: false))
     },
+    Test("silentCheckKeepsInstallFailure") {
+        MainActor.assumeIsolated {
+            let updater = Updater(configuration: configuration, defaults: nil, currentVersion: SemanticVersion(0, 2, 0))
+            let release = sample(SemanticVersion(0, 3, 0))
+            updater.apply(latest: release)
+            updater.fail(installing: release, message: "Corrompu")
+            updater.apply(latest: release, silent: true)
+            expectEqual(UpdateNotice.mode(for: updater), .failure("Corrompu"))
+            updater.apply(latest: release)
+            expectEqual(UpdateNotice.mode(for: updater), .available(release), "une recherche demandee remplace l'echec")
+        }
+    },
 ])

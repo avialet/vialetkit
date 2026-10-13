@@ -239,19 +239,21 @@ public final class Updater {
                 defaults?.set(lastCheck, forKey: configuration.lastCheckKey)
                 // Une verification silencieuse ne remplace pas une installation lancee entre-temps.
                 guard fetchIsUserInitiated || !isBusy else { return }
-                apply(latest: release)
+                apply(latest: release, silent: !fetchIsUserInitiated)
             } catch {
                 if fetchIsUserInitiated { state = .failed(error.localizedDescription) }
             }
         }
     }
 
-    /// Resultat d'une verification : la derniere Release (nil : aucune publiee).
-    func apply(latest release: ReleaseInfo?) {
-        failedRelease = nil
+    /// Resultat d'une verification : la derniere Release (nil : aucune publiee). Une verification
+    /// silencieuse laisse affiche un echec d'installation (elle ne fait que completer les notes).
+    func apply(latest release: ReleaseInfo?, silent: Bool = false) {
         if let release, release.version == updatedVersion, updatedNotes == nil {
             updatedNotes = release.releaseNotes
         }
+        if silent, case .failed = state, failedRelease != nil { return }
+        failedRelease = nil
         state = release.map { $0.version > currentVersion ? .available($0) : .upToDate } ?? .upToDate
     }
 
