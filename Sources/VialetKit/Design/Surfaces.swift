@@ -117,29 +117,59 @@ public struct ShortcutFooter: View {
 
 /// Ecran Reglages standard : wordmark << Reglages. >>, puis les cartes Raccourci global,
 /// Toujours la, Mises a jour et Apparence, puis les cartes propres a l'app (`extra`).
-/// `hotKeyHint` decrit ce que fait le raccourci ; `menuBarVisible` est l'@AppStorage de l'app
-/// (`app.key("MenuBar")`) ; l'apparence est rangee sous `app.key("Appearance")`.
+/// `hotKeyHint` decrit ce que fait le raccourci ; l'apparence est rangee sous `app.key("Appearance")`.
+/// Icone de barre des menus : `menuBar` (MenuBarPresence : Automatique, Toujours, Jamais), nil pour
+/// ne pas proposer la ligne ; l'ancien `menuBarVisible` (interrupteur sur `app.key("MenuBar")`) reste accepte.
 public struct SettingsScreen<Extra: View>: View {
+    enum MenuBarRow {
+        case toggle(Binding<Bool>)
+        case presence(MenuBarPresence)
+        case none
+    }
+
     let app: AppIdentity
     let hotKey: HotKeyController
     let updater: Updater
-    @Binding var menuBarVisible: Bool
+    let menuBar: MenuBarRow
+    let hotKeyEnabled: Binding<Bool>?
     let hotKeyHint: String
+    let alwaysOnHint: String?
     let width: CGFloat
     let extra: Extra
     @State private var launchAtLogin = LaunchAtLogin.isEnabled
     @State private var loginNeedsApproval = LaunchAtLogin.needsApproval
     @State private var appearance: AppearanceChoice
 
+    /// `menuBar` : presence de l'icone de barre des menus (nil : pas de ligne, pour une app qui n'est
+    /// qu'une icone de barre des menus). `hotKeyEnabled` : raccourci facultatif, avec son interrupteur
+    /// (l'app enregistre ou suspend le raccourci). `alwaysOnHint` remplace la legende de la carte
+    /// Toujours la (fermer la fenetre ne quitte pas l'app).
+    public init(app: AppIdentity, hotKey: HotKeyController, updater: Updater, menuBar: MenuBarPresence?,
+                hotKeyEnabled: Binding<Bool>? = nil, hotKeyHint: String, alwaysOnHint: String? = nil,
+                width: CGFloat = 460, @ViewBuilder extra: () -> Extra) {
+        self.init(app: app, hotKey: hotKey, updater: updater, row: menuBar.map(MenuBarRow.presence) ?? .none,
+                  hotKeyEnabled: hotKeyEnabled, hotKeyHint: hotKeyHint, alwaysOnHint: alwaysOnHint, width: width,
+                  extra: extra())
+    }
+
+    /// Ancienne forme : interrupteur << Icone dans la barre des menus >> sur `menuBarVisible`.
     public init(app: AppIdentity, hotKey: HotKeyController, updater: Updater, menuBarVisible: Binding<Bool>,
                 hotKeyHint: String, width: CGFloat = 460, @ViewBuilder extra: () -> Extra) {
+        self.init(app: app, hotKey: hotKey, updater: updater, row: .toggle(menuBarVisible), hotKeyEnabled: nil,
+                  hotKeyHint: hotKeyHint, alwaysOnHint: nil, width: width, extra: extra())
+    }
+
+    private init(app: AppIdentity, hotKey: HotKeyController, updater: Updater, row: MenuBarRow,
+                 hotKeyEnabled: Binding<Bool>?, hotKeyHint: String, alwaysOnHint: String?, width: CGFloat, extra: Extra) {
         self.app = app
         self.hotKey = hotKey
         self.updater = updater
-        self._menuBarVisible = menuBarVisible
+        self.menuBar = row
+        self.hotKeyEnabled = hotKeyEnabled
         self.hotKeyHint = hotKeyHint
+        self.alwaysOnHint = alwaysOnHint
         self.width = width
-        self.extra = extra()
+        self.extra = extra
         self._appearance = State(initialValue: AppearanceChoice.current(defaultsKey: app.key("Appearance")))
     }
 
@@ -148,6 +178,9 @@ public struct SettingsScreen<Extra: View>: View {
             Wordmark("R\u{00E9}glages")
 
             SettingsCard(icon: "keyboard", color: Theme.sea, title: "Raccourci global") {
+                if let hotKeyEnabled {
+                    Toggle("Activer le raccourci", isOn: hotKeyEnabled)
+                }
                 HStack(spacing: 12) {
                     ShortcutRecorder(controller: hotKey)
                     Button("R\u{00E9}tablir") { hotKey.shortcut = hotKey.defaultShortcut }
@@ -156,6 +189,8 @@ public struct SettingsScreen<Extra: View>: View {
                         .foregroundStyle(Theme.inkSoft)
                         .opacity(hotKey.shortcut == hotKey.defaultShortcut ? 0 : 1)
                 }
+                .disabled(hotKeyEnabled?.wrappedValue == false)
+                .opacity(hotKeyEnabled?.wrappedValue == false ? 0.45 : 1)
                 Text(verbatim: hotKey.isTaken
                      ? "Cette combinaison est d\u{00E9}j\u{00E0} utilis\u{00E9}e par une autre app. Choisissez-en une autre."
                      : hotKeyHint)
@@ -178,8 +213,9 @@ public struct SettingsScreen<Extra: View>: View {
                             .buttonStyle(.link).font(Theme.ui(12, weight: .semibold))
                     }
                 }
-                Toggle("Ic\u{00F4}ne dans la barre des menus", isOn: $menuBarVisible)
-                Text(verbatim: "Fermer la fen\u{00EA}tre ne quitte pas \(app.displayName) : le raccourci reste actif. \u{2318}Q pour quitter.")
+                menuBarRow
+                Text(verbatim: alwaysOnHint
+                     ?? "Fermer la fen\u{00EA}tre ne quitte pas \(app.displayName) : le raccourci reste actif. \u{2318}Q pour quitter.")
                     .font(Theme.ui(12)).foregroundStyle(Theme.inkSoft)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -208,8 +244,46 @@ public struct SettingsScreen<Extra: View>: View {
     }
 }
 
+extension SettingsScreen {
+    @ViewBuilder
+    private var menuBarRow: some View {
+        switch menuBar {
+        case .toggle(let visible):
+            Toggle("Ic\u{00F4}ne dans la barre des menus", isOn: visible)
+        case .presence(let presence):
+            HStack {
+                Text("Ic\u{00F4}ne dans la barre des menus")
+                Spacer(minLength: 12)
+                Picker("Ic\u{00F4}ne dans la barre des menus",
+                       selection: Binding(get: { presence.mode }, set: { presence.mode = $0 })) {
+                    ForEach(MenuBarMode.allCases, id: \.self) { Text($0.label).tag($0) }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .fixedSize()
+            }
+            let status = presence.mode.status(hubInstalled: presence.hubInstalled, hubName: "Vialet")
+            if !status.isEmpty {
+                Text(verbatim: status)
+                    .font(Theme.ui(12)).foregroundStyle(Theme.inkSoft)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        case .none:
+            EmptyView()
+        }
+    }
+}
+
 extension SettingsScreen where Extra == EmptyView {
     /// Les quatre cartes standard, sans carte propre a l'app.
+    public init(app: AppIdentity, hotKey: HotKeyController, updater: Updater, menuBar: MenuBarPresence?,
+                hotKeyEnabled: Binding<Bool>? = nil, hotKeyHint: String, alwaysOnHint: String? = nil,
+                width: CGFloat = 460) {
+        self.init(app: app, hotKey: hotKey, updater: updater, menuBar: menuBar, hotKeyEnabled: hotKeyEnabled,
+                  hotKeyHint: hotKeyHint, alwaysOnHint: alwaysOnHint, width: width) { EmptyView() }
+    }
+
+    /// Ancienne forme, sans carte propre a l'app.
     public init(app: AppIdentity, hotKey: HotKeyController, updater: Updater, menuBarVisible: Binding<Bool>,
                 hotKeyHint: String, width: CGFloat = 460) {
         self.init(app: app, hotKey: hotKey, updater: updater, menuBarVisible: menuBarVisible,

@@ -1,6 +1,6 @@
 import AppKit
 import SwiftUI
-import VialetKit
+@testable import VialetKit
 
 /// Identite jetable : cles UserDefaults uniques, effacees apres chaque test.
 @MainActor
@@ -8,7 +8,7 @@ private func withTestApp(_ body: (AppIdentity, HotKeyController, Updater) -> Voi
     let name = "VialetKitCheck\(UInt32.random(in: 0...UInt32.max))"
     let identity = AppIdentity(name: name, displayName: "Essai", repository: "avialet/essai",
                                bundleIdentifier: "fr.vialet.essai", palette: .sea, glyph: "")
-    let suffixes = ["HotKey", "Appearance", "AutoUpdate", "LastUpdateCheck", "MenuBar"]
+    let suffixes = ["HotKey", "Appearance", "AutoUpdate", "LastUpdateCheck", "MenuBar", "MenuBarMode"]
     defer { for s in suffixes { UserDefaults.standard.removeObject(forKey: identity.key(s)) } }
     let hotKey = HotKeyController(defaultsKey: identity.key("HotKey"), logName: name,
                                   initial: .space([.control, .shift]))
@@ -65,6 +65,27 @@ let surfacesTests: (String, [Test]) = ("Surfaces", [
                 let wideSize = fittingSize(wide)
                 expectEqual(wideSize.width, 480)
                 expect(wideSize.height > size.height + 200, "la carte extra s'ajoute : \(wideSize.height)")
+            }
+        }
+    },
+    Test("settingsScreenWithMenuBarPresence") {
+        MainActor.assumeIsolated {
+            withTestApp { identity, hotKey, updater in
+                let presence = MenuBarPresence(app: identity, defaults: .standard, hubLocator: { true }, observe: false)
+                let withRow = fittingSize(SettingsScreen(app: identity, hotKey: hotKey, updater: updater,
+                                                         menuBar: presence, hotKeyHint: "Indice"))
+                let withoutRow = fittingSize(SettingsScreen(app: identity, hotKey: hotKey, updater: updater,
+                                                            menuBar: nil, hotKeyHint: "Indice"))
+                let optionalKey = fittingSize(SettingsScreen(app: identity, hotKey: hotKey, updater: updater,
+                                                             menuBar: nil, hotKeyEnabled: .constant(false),
+                                                             hotKeyHint: "Indice", alwaysOnHint: "Autre texte"))
+                expectEqual(withRow.width, 460)
+                expectEqual(withoutRow.width, 460)
+                expect(withRow.height > withoutRow.height + 20, "la ligne de barre des menus et sa legende : \(withRow.height) / \(withoutRow.height)")
+                expect(optionalKey.height > withoutRow.height, "l'interrupteur du raccourci s'ajoute : \(optionalKey.height)")
+                let extra = fittingSize(SettingsScreen(app: identity, hotKey: hotKey, updater: updater, menuBar: presence,
+                                                       hotKeyHint: "Indice") { Color.clear.frame(height: 200) })
+                expect(extra.height > withRow.height + 190, "la carte extra s'ajoute : \(extra.height)")
             }
         }
     },
