@@ -61,4 +61,21 @@ let floatingPanelTests: (String, [Test]) = ("FloatingPanel", [
             expectEqual(listening.placement, .bottom)
         }
     },
+    Test("showDuringHideFadeKeepsPanelVisible") {
+        MainActor.assumeIsolated {
+            _ = NSApplication.shared
+            let controller = FloatingPanelController(size: CGSize(width: 200, height: 100),
+                                                     takesFocus: false, placement: .bottom) { EmptyView() }
+            controller.show()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+            expect(controller.isVisible, "affiche apres show()")
+            controller.hide()
+            controller.show()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+            expect(controller.isVisible, "le fondu de hide() ne doit pas masquer un show() posterieur")
+            controller.hide()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+            expect(!controller.isVisible, "masque apres hide()")
+        }
+    },
 ])

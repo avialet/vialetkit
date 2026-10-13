@@ -107,13 +107,19 @@ public final class FloatingPanelController<Content: View> {
         }
     }
 
+    /// Fondu puis retrait ; un `show()` survenu pendant le fondu (appui-relache-appui rapide)
+    /// l'emporte : le retrait n'a lieu que si `openCount` n'a pas change.
     public func hide() {
         guard let panel, panel.isVisible else { return }
+        let token = openCount
         NSAnimationContext.runAnimationGroup({ ctx in
             ctx.duration = 0.1
             panel.animator().alphaValue = 0
-        }, completionHandler: {
-            MainActor.assumeIsolated { panel.orderOut(nil) }
+        }, completionHandler: { [weak self] in
+            MainActor.assumeIsolated {
+                if let self, self.openCount != token { return }
+                panel.orderOut(nil)
+            }
         })
     }
 
