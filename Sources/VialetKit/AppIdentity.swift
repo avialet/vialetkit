@@ -16,9 +16,11 @@ public struct AppIdentity: Sendable {
     public let glyph: String
     /// Trait du glyphe en `deep` plutot qu'en blanc sur la plaque.
     public let strokeDeep: Bool
+    /// Site, si ce n'est pas `https://<nom>.vialet.app` (Vialet : `https://vialet.app`).
+    private let site: URL?
 
     public init(name: String, displayName: String, repository: String, bundleIdentifier: String,
-                palette: AccentPalette, glyph: String, strokeDeep: Bool = false) {
+                palette: AccentPalette, glyph: String, strokeDeep: Bool = false, site: URL? = nil) {
         self.name = name
         self.displayName = displayName
         self.repository = repository
@@ -26,10 +28,11 @@ public struct AppIdentity: Sendable {
         self.palette = palette
         self.glyph = glyph
         self.strokeDeep = strokeDeep
+        self.site = site
     }
 
-    /// `https://<name minuscule>.vialet.app`
-    public var siteURL: URL { URL(string: "https://\(name.lowercased()).vialet.app")! }
+    /// `https://<name minuscule>.vialet.app`, ou le site donne a l'init.
+    public var siteURL: URL { site ?? URL(string: "https://\(name.lowercased()).vialet.app")! }
     /// `https://github.com/<repository>`
     public var repositoryURL: URL { URL(string: "https://github.com/\(repository)")! }
     public var author: String { "Aur\u{00E9}lien Vialet" }

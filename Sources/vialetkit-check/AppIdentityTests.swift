@@ -13,6 +13,14 @@ let appIdentityTests: (String, [Test]) = ("AppIdentity", [
         expectEqual(allegeIdentity.siteURL, URL(string: "https://allege.vialet.app")!)
         expectEqual(allegeIdentity.repositoryURL, URL(string: "https://github.com/avialet/allege")!)
     },
+    Test("siteOverride") {
+        let hub = AppIdentity(name: "Vialet", displayName: "Vialet", repository: "avialet/vialet",
+                              bundleIdentifier: "fr.vialet.vialet", palette: .sea, glyph: "",
+                              site: URL(string: "https://vialet.app")!)
+        expectEqual(hub.siteURL, URL(string: "https://vialet.app")!)
+        let m = HubManifest(identity: hub, version: "0.1.0", appPath: "/Applications/Vialet.app", scheme: "vialet", actions: [])
+        expectEqual(m.site, "https://vialet.app")
+    },
     Test("credits") {
         expectEqual(allegeIdentity.author, "Aur\u{00E9}lien Vialet")
         expectEqual(allegeIdentity.license, "MIT")
