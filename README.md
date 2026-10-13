@@ -25,7 +25,8 @@ Aucune dépendance externe. Swift 6, macOS 15 ou plus récent (les apps visent m
 
 ```swift
 // Package.swift
-.package(url: "https://github.com/avialet/vialetkit.git", from: "0.2.0")
+.package(url: "https://github.com/avialet/vialetkit.git", .upToNextMinor(from: "0.2.0"))
+// En 0.x, un changement cassant monte le mineur : epingler le mineur, pas `from:` (= < 1.0.0).
 ```
 
 ```swift
