@@ -118,7 +118,7 @@ public struct ShortcutFooter: View {
 /// Ecran Reglages standard : wordmark << Reglages. >>, puis les cartes Raccourci global,
 /// Toujours la, Mises a jour et Apparence, puis les cartes propres a l'app (`extra`).
 /// `hotKeyHint` decrit ce que fait le raccourci ; `menuBarVisible` est l'@AppStorage de l'app
-/// (`Brand.key("MenuBar")`) ; l'apparence est rangee sous `app.key("Appearance")`.
+/// (`app.key("MenuBar")`) ; l'apparence est rangee sous `app.key("Appearance")`.
 public struct SettingsScreen<Extra: View>: View {
     let app: AppIdentity
     let hotKey: HotKeyController

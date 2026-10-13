@@ -191,6 +191,6 @@ public enum SnapshotRunner {
             $0.isVisible && (!before.contains(ObjectIdentifier($0)) || matching($0))
         }
         if let key = NSApp.keyWindow, candidates.contains(key) { return key }
-        return candidates.first
+        return candidates.first(where: matching) ?? candidates.first
     }
 }
