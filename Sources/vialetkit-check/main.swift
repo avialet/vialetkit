@@ -4,4 +4,5 @@ run([
     updateTests,
     hotKeyTests,
     appInfoTests,
+    textTests,
 ])
