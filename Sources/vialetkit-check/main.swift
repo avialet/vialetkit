@@ -8,4 +8,5 @@ run([
     fontsTests,
     paletteTests,
     paletteMixTests,
+    glyphTests,
 ])
