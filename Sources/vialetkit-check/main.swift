@@ -4,6 +4,7 @@ run([
     updateTests,
     updateScheduleTests,
     releaseNotesTests,
+    updateNoticeTests,
     hotKeyTests,
     appInfoTests,
     textTests,

@@ -39,6 +39,16 @@ public struct ReleaseInfo: Equatable, Sendable {
                            dmgName: dmgName, checksumURL: sumURL)
     }
 
+    /// Release fictive (apercus du mode capture, tests) : pages et fichiers aux adresses GitHub
+    /// habituelles du depot, rien n'est telecharge.
+    static func sample(_ configuration: UpdaterConfiguration, version: SemanticVersion, notes: String) -> ReleaseInfo {
+        let base = "https://github.com/\(configuration.repository)/releases"
+        let dmgName = "\(configuration.appName)-\(version).dmg"
+        return ReleaseInfo(version: version, notes: notes, pageURL: URL(string: "\(base)/tag/v\(version)")!,
+                           dmgURL: URL(string: "\(base)/download/v\(version)/\(dmgName)")!, dmgName: dmgName,
+                           checksumURL: URL(string: "\(base)/download/v\(version)/\(dmgName).sha256")!)
+    }
+
     private static func secureURL(_ string: String) -> URL? {
         guard let url = URL(string: string), url.scheme == "https",
               let host = url.host?.lowercased(), allowedHosts.contains(host) else { return nil }

@@ -11,19 +11,34 @@ public struct UpdaterConfiguration: Sendable {
     public let displayName: String
     public let bundleIdentifier: String
     public let defaultsPrefix: String
+    /// Glyphe de l'app (AppIdentity.glyph) pour l'icone de `UpdateNotice` ; vide : symbole.
+    public let glyph: String
+    /// Trait du glyphe en `deep` plutot qu'en blanc sur la plaque.
+    public let strokeDeep: Bool
 
     public init(repository: String, appName: String, bundleIdentifier: String,
-                displayName: String? = nil, defaultsPrefix: String? = nil) {
+                displayName: String? = nil, defaultsPrefix: String? = nil,
+                glyph: String = "", strokeDeep: Bool = false) {
         self.repository = repository
         self.appName = appName
         self.displayName = displayName ?? appName
         self.bundleIdentifier = bundleIdentifier
         self.defaultsPrefix = defaultsPrefix ?? appName
+        self.glyph = glyph
+        self.strokeDeep = strokeDeep
     }
 
     public var releaseURL: URL { URL(string: "https://api.github.com/repos/\(repository)/releases/latest")! }
+    /// `releases/tags/v<version>` : notes de la version installee, apres une mise a jour.
+    func releaseURL(tag version: SemanticVersion) -> URL {
+        URL(string: "https://api.github.com/repos/\(repository)/releases/tags/v\(version)")!
+    }
     var autoKey: String { defaultsPrefix + "AutoUpdate" }
     var lastCheckKey: String { defaultsPrefix + "LastUpdateCheck" }
+    /// Version ecartee par « Plus tard » dans `UpdateNotice`.
+    var dismissedKey: String { defaultsPrefix + "DismissedUpdate" }
+    /// Derniere version dont les nouveautes ont ete vues.
+    var lastSeenKey: String { defaultsPrefix + "LastSeenVersion" }
 }
 
 public enum UpdateState: Equatable, Sendable {
@@ -53,26 +68,89 @@ public final class Updater {
     public private(set) var state: UpdateState = .idle
     public private(set) var lastCheck: Date?
     public var autoCheck: Bool {
-        didSet { UserDefaults.standard.set(autoCheck, forKey: configuration.autoKey) }
+        didSet { defaults?.set(autoCheck, forKey: configuration.autoKey) }
     }
 
     public let currentVersion: SemanticVersion
+    /// Version ecartee par « Plus tard » : elle n'est plus annoncee, la suivante si.
+    public private(set) var dismissedVersion: SemanticVersion?
+    /// Version installee dont les nouveautes n'ont pas encore ete vues (premier lancement apres
+    /// une mise a jour) ; nil sinon. `acknowledgeUpdate()` la marque comme vue.
+    public private(set) var updatedVersion: SemanticVersion?
+    /// Nouveautes de `updatedVersion`, lues dans sa Release (nil tant qu'elles ne sont pas connues).
+    public private(set) var updatedNotes: ReleaseNotes?
+    /// Release dont l'installation a echoue (pour reessayer depuis le bandeau).
+    private(set) var failedRelease: ReleaseInfo?
+
+    /// nil : aucune persistance (apercus du mode capture).
+    private let defaults: UserDefaults?
     private var task: Task<Void, Never>?
     private var periodicTask: Task<Void, Never>?
+    private var notesTask: Task<Void, Never>?
     /// Lecture de la derniere Release en cours (verification manuelle ou silencieuse).
     private var isFetching = false
     private var fetchIsUserInitiated = false
 
-    public init(configuration: UpdaterConfiguration) {
+    public convenience init(configuration: UpdaterConfiguration) {
+        self.init(configuration: configuration, defaults: .standard, currentVersion: AppInfo.semanticVersion)
+    }
+
+    init(configuration: UpdaterConfiguration, defaults: UserDefaults?, currentVersion: SemanticVersion) {
         self.configuration = configuration
-        currentVersion = AppInfo.semanticVersion
-        autoCheck = UserDefaults.standard.object(forKey: configuration.autoKey) as? Bool ?? true
-        lastCheck = UserDefaults.standard.object(forKey: configuration.lastCheckKey) as? Date
+        self.defaults = defaults
+        self.currentVersion = currentVersion
+        autoCheck = defaults?.object(forKey: configuration.autoKey) as? Bool ?? true
+        lastCheck = defaults?.object(forKey: configuration.lastCheckKey) as? Date
+        dismissedVersion = defaults?.string(forKey: configuration.dismissedKey).flatMap(SemanticVersion.init(string:))
+        guard let defaults else { return }
+        let lastSeen = defaults.string(forKey: configuration.lastSeenKey).flatMap(SemanticVersion.init(string:))
+        if Self.justUpdated(current: currentVersion, lastSeen: lastSeen, hasRunBefore: lastCheck != nil) {
+            updatedVersion = currentVersion
+        } else if currentVersion > SemanticVersion(0), lastSeen != currentVersion {
+            defaults.set(currentVersion.description, forKey: configuration.lastSeenKey)
+        }
     }
 
     public var available: ReleaseInfo? {
         if case .available(let r) = state { return r }
         return nil
+    }
+
+    /// La version disponible, si elle n'a pas ete ecartee par « Plus tard » : ce qu'annonce `UpdateNotice`.
+    public var announced: ReleaseInfo? {
+        guard let release = available, Self.shouldAnnounce(release.version, dismissed: dismissedVersion) else { return nil }
+        return release
+    }
+
+    nonisolated static func shouldAnnounce(_ version: SemanticVersion, dismissed: SemanticVersion?) -> Bool {
+        dismissed.map { version > $0 } ?? true
+    }
+
+    /// Premier lancement apres une mise a jour : version connue plus recente que la derniere vue ;
+    /// sans version vue (cle anterieure a VialetKit 0.2.2), l'app a deja tourne si elle a deja
+    /// verifie les mises a jour.
+    nonisolated static func justUpdated(current: SemanticVersion, lastSeen: SemanticVersion?, hasRunBefore: Bool) -> Bool {
+        guard current > SemanticVersion(0) else { return false }
+        if let lastSeen { return current > lastSeen }
+        return hasRunBefore
+    }
+
+    /// « Plus tard » : n'annonce plus cette version (la carte des Reglages la propose toujours).
+    public func dismissAvailable() {
+        guard let release = available ?? failedRelease else { return }
+        dismissedVersion = release.version
+        defaults?.set(release.version.description, forKey: configuration.dismissedKey)
+        if case .failed = state, failedRelease != nil {
+            state = .available(release)
+            failedRelease = nil
+        }
+    }
+
+    /// « OK » du bandeau « a ete mis a jour » : les nouveautes de cette version sont vues.
+    public func acknowledgeUpdate() {
+        updatedVersion = nil
+        updatedNotes = nil
+        defaults?.set(currentVersion.description, forKey: configuration.lastSeenKey)
     }
 
     public var isBusy: Bool {
@@ -105,6 +183,7 @@ public final class Updater {
     /// pas par `.checking` et un echec reseau ne change rien.
     public func checkAutomatically() {
         startPeriodicChecks()
+        fetchUpdatedNotesIfNeeded()
         guard Self.shouldCheckAutomatically(now: Date(), lastCheck: lastCheck, autoCheck: autoCheck) else { return }
         check(userInitiated: false)
     }
@@ -131,7 +210,7 @@ public final class Updater {
         guard !isBusy else { return }
         isFetching = true
         fetchIsUserInitiated = userInitiated
-        if userInitiated { state = .checking }
+        if userInitiated { state = .checking; failedRelease = nil }
         let configuration = configuration
         task = Task { [weak self] in
             guard let self else { return }
@@ -142,10 +221,37 @@ public final class Updater {
                 UserDefaults.standard.set(lastCheck, forKey: configuration.lastCheckKey)
                 // Une verification silencieuse ne remplace pas une installation lancee entre-temps.
                 guard fetchIsUserInitiated || !isBusy else { return }
-                state = release.map { $0.version > currentVersion ? .available($0) : .upToDate } ?? .upToDate
+                apply(latest: release)
             } catch {
                 if fetchIsUserInitiated { state = .failed(error.localizedDescription) }
             }
+        }
+    }
+
+    /// Resultat d'une verification : la derniere Release (nil : aucune publiee).
+    func apply(latest release: ReleaseInfo?) {
+        failedRelease = nil
+        if let release, release.version == updatedVersion, updatedNotes == nil {
+            updatedNotes = release.releaseNotes
+        }
+        state = release.map { $0.version > currentVersion ? .available($0) : .upToDate } ?? .upToDate
+    }
+
+    /// Apres une mise a jour, lit en silence les notes de la version installee (une fois par
+    /// lancement, si la verification automatique est permise ; hors ligne, le bandeau s'en passe).
+    private func fetchUpdatedNotesIfNeeded() {
+        guard let version = updatedVersion, updatedNotes == nil, notesTask == nil, autoCheck else { return }
+        let configuration = configuration
+        notesTask = Task { [weak self] in
+            var request = URLRequest(url: configuration.releaseURL(tag: version))
+            request.timeoutInterval = 15
+            request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+            request.setValue(configuration.appName, forHTTPHeaderField: "User-Agent")
+            guard let (data, response) = try? await URLSession.shared.data(for: request),
+                  (response as? HTTPURLResponse)?.statusCode == 200,
+                  let body = ReleaseInfo.notesBody(json: data) else { return }
+            guard let self, updatedVersion == version, updatedNotes == nil else { return }
+            updatedNotes = ReleaseNotes(markdown: body)
         }
     }
 
@@ -177,6 +283,7 @@ public final class Updater {
         guard bundle.pathExtension == "app", FileManager.default.isWritableFile(atPath: parent.path),
               FileManager.default.isWritableFile(atPath: bundle.path) else {
             NSWorkspace.shared.open(release.pageURL)
+            failedRelease = release
             state = .failed("\(configuration.displayName) est installé dans un dossier protégé : la page de la version s'ouvre pour un téléchargement manuel.")
             return
         }
@@ -198,13 +305,22 @@ public final class Updater {
             } catch is CancellationError {
                 state = .available(release)
             } catch {
+                failedRelease = release
                 state = .failed(error.localizedDescription)
             }
         }
     }
 
+    /// Reprend une installation qui a echoue (bouton « Reessayer » du bandeau).
+    func retryInstall() {
+        guard case .failed = state, let release = failedRelease else { return }
+        failedRelease = nil
+        state = .available(release)
+        install()
+    }
+
     public func dismissError() {
-        if case .failed = state { state = .idle }
+        if case .failed = state { state = .idle; failedRelease = nil }
     }
 
     /// Telecharge, verifie et extrait la nouvelle app dans un dossier temporaire.

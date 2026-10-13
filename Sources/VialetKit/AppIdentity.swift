@@ -42,6 +42,7 @@ public struct AppIdentity: Sendable {
 extension UpdaterConfiguration {
     public init(_ identity: AppIdentity) {
         self.init(repository: identity.repository, appName: identity.name,
-                  bundleIdentifier: identity.bundleIdentifier, displayName: identity.displayName)
+                  bundleIdentifier: identity.bundleIdentifier, displayName: identity.displayName,
+                  glyph: identity.glyph, strokeDeep: identity.strokeDeep)
     }
 }
