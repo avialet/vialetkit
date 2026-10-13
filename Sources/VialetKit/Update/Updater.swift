@@ -35,7 +35,7 @@ public struct UpdaterConfiguration: Sendable {
     }
     var autoKey: String { defaultsPrefix + "AutoUpdate" }
     var lastCheckKey: String { defaultsPrefix + "LastUpdateCheck" }
-    /// Version ecartee par « Plus tard » dans `UpdateNotice`.
+    /// Version ecartee par << Plus tard >> dans `UpdateNotice`.
     var dismissedKey: String { defaultsPrefix + "DismissedUpdate" }
     /// Derniere version dont les nouveautes ont ete vues.
     var lastSeenKey: String { defaultsPrefix + "LastSeenVersion" }
@@ -72,7 +72,7 @@ public final class Updater {
     }
 
     public let currentVersion: SemanticVersion
-    /// Version ecartee par « Plus tard » : elle n'est plus annoncee, la suivante si.
+    /// Version ecartee par << Plus tard >> : elle n'est plus annoncee, la suivante si.
     public private(set) var dismissedVersion: SemanticVersion?
     /// Version installee dont les nouveautes n'ont pas encore ete vues (premier lancement apres
     /// une mise a jour) ; nil sinon. `acknowledgeUpdate()` la marque comme vue.
@@ -116,7 +116,7 @@ public final class Updater {
         return nil
     }
 
-    /// La version disponible, si elle n'a pas ete ecartee par « Plus tard » : ce qu'annonce `UpdateNotice`.
+    /// La version disponible, si elle n'a pas ete ecartee par << Plus tard >> : ce qu'annonce `UpdateNotice`.
     public var announced: ReleaseInfo? {
         guard let release = available, Self.shouldAnnounce(release.version, dismissed: dismissedVersion) else { return nil }
         return release
@@ -135,7 +135,7 @@ public final class Updater {
         return hasRunBefore
     }
 
-    /// « Plus tard » : n'annonce plus cette version (la carte des Reglages la propose toujours).
+    /// << Plus tard >> : n'annonce plus cette version (la carte des Reglages la propose toujours).
     public func dismissAvailable() {
         guard let release = available ?? failedRelease else { return }
         dismissedVersion = release.version
@@ -152,7 +152,7 @@ public final class Updater {
         updatedNotes = notes
     }
 
-    /// « OK » du bandeau « a ete mis a jour » : les nouveautes de cette version sont vues.
+    /// << OK >> du bandeau << a ete mis a jour >> : les nouveautes de cette version sont vues.
     public func acknowledgeUpdate() {
         updatedVersion = nil
         updatedNotes = nil
@@ -321,7 +321,7 @@ public final class Updater {
         state = .failed(message)
     }
 
-    /// Reprend une installation qui a echoue (bouton « Reessayer » du bandeau).
+    /// Reprend une installation qui a echoue (bouton << Reessayer >> du bandeau).
     func retryInstall() {
         guard case .failed = state, let release = failedRelease else { return }
         failedRelease = nil

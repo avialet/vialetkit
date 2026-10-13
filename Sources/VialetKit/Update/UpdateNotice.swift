@@ -4,12 +4,12 @@ import SwiftUI
 /// dans une pile sans espacement : `VStack(spacing: 0) { UpdateNotice(updater: .shared); ... }`.
 /// Il n'occupe aucune place tant qu'il n'a rien a dire.
 ///
-/// - Mise a jour disponible et non ecartee : « <App> X.Y.Z est disponible », « Nouveautes » (deplie
-///   le journal), « Plus tard » (ecarte cette version, la suivante reapparait) et « Installer et relancer ».
+/// - Mise a jour disponible et non ecartee : << <App> X.Y.Z est disponible >>, << Nouveautes >> (deplie
+///   le journal), << Plus tard >> (ecarte cette version, la suivante reapparait) et << Installer et relancer >>.
 /// - Installation : avancement (telechargement, verification, relance), puis l'erreur eventuelle avec
-///   « Reessayer ».
-/// - Premier lancement apres une mise a jour : « <App> a ete mis a jour en X.Y.Z », ses nouveautes
-///   et « OK ».
+///   << Reessayer >>.
+/// - Premier lancement apres une mise a jour : << <App> a ete mis a jour en X.Y.Z >>, ses nouveautes
+///   et << OK >>.
 public struct UpdateNotice: View {
     let updater: Updater
     let padding: EdgeInsets
