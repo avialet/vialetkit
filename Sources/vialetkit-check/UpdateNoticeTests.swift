@@ -179,4 +179,14 @@ let updateNoticeTests: (String, [Test]) = ("UpdateNotice", [
             expect(shown.fittingSize.height > 40, "hauteur \(shown.fittingSize.height)")
         }
     },
+    Test("updatedNotesFetchedOnlyWhenCheckSkipped") {
+        let v = SemanticVersion(0, 2, 0)
+        expect(!Updater.shouldFetchUpdatedNotes(updatedVersion: v, hasNotes: false, autoCheck: true, willCheck: true),
+               "la verification remplira les notes")
+        expect(Updater.shouldFetchUpdatedNotes(updatedVersion: v, hasNotes: false, autoCheck: true, willCheck: false),
+               "verification sautee par le plancher")
+        expect(!Updater.shouldFetchUpdatedNotes(updatedVersion: v, hasNotes: true, autoCheck: true, willCheck: false))
+        expect(!Updater.shouldFetchUpdatedNotes(updatedVersion: v, hasNotes: false, autoCheck: false, willCheck: false))
+        expect(!Updater.shouldFetchUpdatedNotes(updatedVersion: nil, hasNotes: false, autoCheck: true, willCheck: false))
+    },
 ])

@@ -189,9 +189,21 @@ public final class Updater {
     /// pas par `.checking` et un echec reseau ne change rien.
     public func checkAutomatically() {
         startPeriodicChecks()
-        fetchUpdatedNotesIfNeeded()
-        guard Self.shouldCheckAutomatically(now: Date(), lastCheck: lastCheck, autoCheck: autoCheck) else { return }
+        let willCheck = Self.shouldCheckAutomatically(now: Date(), lastCheck: lastCheck, autoCheck: autoCheck)
+        if Self.shouldFetchUpdatedNotes(updatedVersion: updatedVersion, hasNotes: updatedNotes != nil,
+                                        autoCheck: autoCheck, willCheck: willCheck) {
+            fetchUpdatedNotes()
+        }
+        guard willCheck else { return }
         check(userInitiated: false)
+    }
+
+    /// Notes de la version installee a lire par `releases/tags` : seulement si la verification
+    /// automatique est sautee (plancher de 30 min) ; sinon `apply(latest:)` les tire de la derniere
+    /// Release quand c'est la version installee. Une seule requete au lancement.
+    nonisolated static func shouldFetchUpdatedNotes(updatedVersion: SemanticVersion?, hasNotes: Bool,
+                                                    autoCheck: Bool, willCheck: Bool) -> Bool {
+        updatedVersion != nil && !hasNotes && autoCheck && !willCheck
     }
 
     private func startPeriodicChecks() {
@@ -244,9 +256,9 @@ public final class Updater {
     }
 
     /// Apres une mise a jour, lit en silence les notes de la version installee (une fois par
-    /// lancement, si la verification automatique est permise ; hors ligne, le bandeau s'en passe).
-    private func fetchUpdatedNotesIfNeeded() {
-        guard let version = updatedVersion, updatedNotes == nil, notesTask == nil, autoCheck else { return }
+    /// lancement ; hors ligne, le bandeau s'en passe).
+    private func fetchUpdatedNotes() {
+        guard let version = updatedVersion, notesTask == nil else { return }
         let configuration = configuration
         notesTask = Task { [weak self] in
             var request = URLRequest(url: configuration.releaseURL(tag: version))
