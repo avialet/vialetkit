@@ -210,7 +210,8 @@ struct SettingsView: View {
 `menuBar:` donne la ligne « Icône dans la barre des menus : Automatique / Toujours / Jamais » et sa
 légende (voir plus bas) ; `nil` la retire (app qui n'est qu'une icône de barre des menus).
 `hotKeyEnabled:` (facultatif) ajoute l'interrupteur « Activer le raccourci » à la carte Raccourci
-global ; `alwaysOnHint:` remplace la légende de la carte Toujours là. L'ancienne forme
+global ; `alwaysOnHint:` remplace la légende de la carte Toujours là, `updateNote:` la phrase sur
+les échanges réseau de la carte Mises à jour (`UpdateCard(updater:note:)`). L'ancienne forme
 `menuBarVisible: $booleen` (simple interrupteur) reste acceptée.
 
 Sans carte propre à l'app, la fermeture `extra` s'omet.

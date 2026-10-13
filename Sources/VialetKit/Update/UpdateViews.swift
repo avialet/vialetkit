@@ -67,8 +67,13 @@ public enum UpdateText {
 /// Carte "Mises a jour" des reglages.
 public struct UpdateCard: View {
     @Bindable var updater: Updater
+    let note: String?
 
-    public init(updater: Updater) { self.updater = updater }
+    /// `note` remplace la phrase sur les echanges reseau (une app qui lit plus que sa propre Release).
+    public init(updater: Updater, note: String? = nil) {
+        self.updater = updater
+        self.note = note
+    }
 
     public var body: some View {
         let name = updater.configuration.displayName
@@ -103,7 +108,7 @@ public struct UpdateCard: View {
                 Text("Au lancement, puis toutes les 6 h. Dernière recherche : \(last.formatted(.relative(presentation: .named)))")
                     .font(Theme.ui(11.5)).foregroundStyle(Theme.inkFaint)
             }
-            Text("Le seul échange réseau de \(name) : la lecture de la dernière version publiée sur GitHub. Aucune donnée n'est envoyée.")
+            Text(note ?? "Le seul échange réseau de \(name) : la lecture de la dernière version publiée sur GitHub. Aucune donnée n'est envoyée.")
                 .font(Theme.ui(11.5)).foregroundStyle(Theme.inkFaint).fixedSize(horizontal: false, vertical: true)
         }
     }

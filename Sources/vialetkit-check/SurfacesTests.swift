@@ -83,6 +83,10 @@ let surfacesTests: (String, [Test]) = ("Surfaces", [
                 expectEqual(withoutRow.width, 460)
                 expect(withRow.height > withoutRow.height + 20, "la ligne de barre des menus et sa legende : \(withRow.height) / \(withoutRow.height)")
                 expect(optionalKey.height > withoutRow.height, "l'interrupteur du raccourci s'ajoute : \(optionalKey.height)")
+                let note = String(repeating: "Note r\u{00E9}seau propre \u{00E0} l'app. ", count: 8)
+                let noted = fittingSize(SettingsScreen(app: identity, hotKey: hotKey, updater: updater, menuBar: nil,
+                                                       hotKeyHint: "Indice", updateNote: note))
+                expect(noted.height > withoutRow.height + 20, "la note reseau remplace la phrase standard : \(noted.height)")
                 let extra = fittingSize(SettingsScreen(app: identity, hotKey: hotKey, updater: updater, menuBar: presence,
                                                        hotKeyHint: "Indice") { Color.clear.frame(height: 200) })
                 expect(extra.height > withRow.height + 190, "la carte extra s'ajoute : \(extra.height)")
