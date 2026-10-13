@@ -24,10 +24,11 @@ public enum FloatingPanelPlacement: Equatable, Sendable {
 /// Petite fenetre flottante, ouverte par le raccourci global. Panneau
 /// "non activant" : on tape dedans sans que l'app passe au premier plan.
 /// Avec `takesFocus: false`, il ne devient jamais cle : il s'affiche au-dessus de l'app active
-/// sans lui prendre la frappe, et ses boutons restent cliquables.
+/// sans lui prendre la frappe, et ses boutons restent cliquables. Echap ne l'atteint donc pas :
+/// le fermer par `FloatingPanelController.hide()`.
 public final class FloatingPanel: NSPanel {
-    /// Appele sur Echap ou quand le panneau perd le focus (clic ailleurs) ; jamais par la perte
-    /// du focus si `takesFocus` est faux.
+    /// Appele sur Echap ou quand le panneau perd le focus (clic ailleurs). Jamais si `takesFocus`
+    /// est faux : le panneau n'est jamais cle, Echap et la perte du focus sont sans effet.
     public var onDismiss: (() -> Void)?
     /// Faux : le panneau ne devient jamais cle et ne se ferme pas quand une autre fenetre l'est.
     public let takesFocus: Bool
@@ -55,6 +56,7 @@ public final class FloatingPanel: NSPanel {
         if takesFocus { onDismiss?() }
     }
 
+    /// Echap, seulement quand le panneau est cle (donc jamais avec `takesFocus: false`).
     public override func cancelOperation(_ sender: Any?) {
         onDismiss?()
     }
@@ -64,7 +66,8 @@ public final class FloatingPanel: NSPanel {
 /// `openCount` s'incremente a chaque ouverture : la vue s'en sert pour
 /// redonner le focus a son champ.
 /// `takesFocus: false` : panneau d'ecoute qui s'affiche sans activer l'app ni devenir cle
-/// (la frappe reste a l'app active) ; `placement` choisit le haut ou le bas de l'ecran.
+/// (la frappe reste a l'app active) ; Echap est sans effet, l'app le ferme par `hide()`.
+/// `placement` choisit le haut ou le bas de l'ecran.
 @MainActor
 @Observable
 public final class FloatingPanelController<Content: View> {

@@ -166,7 +166,8 @@ Sans carte propre à l'app, la fermeture `extra` s'omet.
   d'avant et efface un `onRelease` précédent.
 - `FloatingPanelController(size:takesFocus:placement:content:)` : avec `takesFocus: false`, le
   panneau ne devient jamais clé, s'affiche par-dessus l'app active sans l'activer ni lui prendre
-  la frappe et ne se ferme pas quand on clique ailleurs ; ses boutons restent cliquables.
+  la frappe et ne se ferme pas quand on clique ailleurs ; ses boutons restent cliquables. Jamais
+  clé, il ne reçoit pas Échap : l'app le ferme elle-même par `hide()`.
   `placement: .bottom` le pose au-dessus du bas de l'écran (bas à 10 % de la hauteur visible),
   `.upperThird` (défaut) garde la position de palette.
 
