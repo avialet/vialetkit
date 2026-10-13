@@ -14,6 +14,8 @@ app embarque à l'identique, écrit une seule fois.
   (`WindowSummoner`), apparence (`AppearanceChoice`), ouverture à la connexion (`LaunchAtLogin`),
   version lue dans le bundle (`AppInfo`), panneau À propos (`AboutPanel`, `AboutCommands`),
   icône de barre des menus (`MenuBarIcon`).
+- **Surfaces communes** (`Wordmark`, `SectionHeader`, `PanelCard`, `KeyHint`, `ShortcutFooter`,
+  `SettingsScreen`) et **mode capture** (`SnapshotRunner`), voir plus bas.
 - **Identité** (`AppIdentity`) : nom, dépôt, bundle, palette et glyphe déclarés une fois ;
   site, liens, clés UserDefaults et configuration de mise à jour en découlent.
 
@@ -118,6 +120,74 @@ GitHub). L'icône reste celle du bundle. Adoption dans une app :
             MenuBarIcon(glyph: Brand.identity.glyph)
         }
     }
+}
+```
+
+## Surfaces
+
+Les motifs que chaque app recopiait, à l'identique :
+
+- `Wordmark("Pince")` : nom en `Theme.display(26)`, encre, suivi d'un point à l'accent
+  (`size:` pour une autre taille) ; `Wordmark.Mini("Pince")` : « pince. » en 15 heavy, `inkFaint`,
+  pour l'en-tête d'un panneau. Pas de marge : chaque fenêtre pose la sienne.
+- `SectionHeader("Aujourd'hui")` : titre de section en capitales, 11,5 gras, `inkFaint`.
+- `PanelCard { … }` : carte du panneau flottant (fond `card`, coins `Radius.panel`, ombre
+  `Shadow.panel`, contour `line`) ; le contenu est rogné aux coins, l'ombre déborde (laisser 16 pt).
+- `KeyHint("esc", "fermer")` : touche sur fond d'encre à 7 % et son libellé.
+- `ShortcutFooter(hotKey.shortcut)` : « Raccourci ⌃⇧Espace » en pied de barre latérale.
+- `SettingsScreen` : l'écran Réglages complet, wordmark « Réglages. » puis les cartes Raccourci
+  global (avec « Rétablir » vers `HotKeyController.defaultShortcut`), Toujours là, Mises à jour,
+  Apparence, puis les cartes propres à l'app :
+
+```swift
+struct SettingsView: View {
+    @AppStorage(Brand.identity.key("MenuBar")) private var menuBarVisible = true
+
+    var body: some View {
+        SettingsScreen(app: Brand.identity, hotKey: .shared, updater: .shared,
+                       menuBarVisible: $menuBarVisible,
+                       hotKeyHint: "Depuis n'importe quelle app : affiche ou masque Allège.",
+                       width: 480) {
+            SettingsCard(icon: "doc.on.clipboard", color: Theme.accent, title: "Historique") { … }
+        }
+    }
+}
+```
+
+Sans carte propre à l'app, la fermeture `extra` s'omet.
+
+## Capture
+
+En DEBUG, l'app rend ses fenêtres en PNG elle-même, sans autorisation d'enregistrement d'écran :
+
+```
+Allege -AllegeSnapshot /tmp/captures [-AllegeSnapshotAppearance dark] [-AllegeSnapshotOnly settings,about] [-AllegeSnapshotSize 1000x720]
+```
+
+écrit `/tmp/captures/<scénario>.png` (`<scénario>-sombre.png` en sombre), imprime
+`capture : <chemin>` par fichier puis quitte. La taille s'applique aux fenêtres
+redimensionnables. Scénarios standard : `mainWindow` (après 2 s), `settings` (entrée « Réglages… »
+du menu de l'app), `about` (panneau À propos) et `floatingPanel` (le `FloatingPanel` de l'app s'il
+existe déjà). Un scénario de l'app portant le même nom remplace le standard. La graine des
+données reste dans l'app, appelée avant :
+
+```swift
+func applicationDidFinishLaunching(_ notification: Notification) {
+    HotKeyController.shared.start { WindowSummoner.toggle() }
+    #if DEBUG
+    if CommandLine.arguments.contains("-AllegeSnapshotSeed") { seed() }
+    let captured = SnapshotRunner.runIfRequested(
+        prefix: Brand.identity.name,
+        scenarios: SnapshotRunner.standardScenarios(mainWindow: { WindowSummoner.mainWindow },
+                                                    identity: Brand.identity)
+            + [SnapshotScenario("detail") {
+                AppState.shared.processAll()
+                try await Task.sleep(for: .seconds(1))
+                return WindowSummoner.mainWindow
+            }])
+    if captured { return }
+    #endif
+    // ... vérification des mises à jour, etc.
 }
 ```
 
