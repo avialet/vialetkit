@@ -47,12 +47,18 @@ public struct ReleaseNotes: Equatable, Sendable {
         return rest.isEmpty || rest.first == " " || rest.first == "\t"
     }
 
-    /// Une puce (ou le chapeau) en texte riche : gras, italique, `code` et liens ; texte brut si
-    /// le markdown est illisible.
+    /// Une puce (ou le chapeau) en texte riche : gras, italique, `code` et liens http(s) (les autres
+    /// liens restent du texte) ; texte brut si le markdown est illisible.
     public static func inline(_ markdown: String) -> AttributedString {
-        (try? AttributedString(markdown: markdown,
-                               options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)))
-            ?? AttributedString(markdown)
+        guard var text = try? AttributedString(markdown: markdown,
+                                               options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))
+        else { return AttributedString(markdown) }
+        for run in text.runs {
+            guard let link = run.link else { continue }
+            let scheme = link.scheme?.lowercased()
+            if scheme != "http" && scheme != "https" { text[run.range].link = nil }
+        }
+        return text
     }
 }
 

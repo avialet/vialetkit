@@ -52,4 +52,13 @@ let releaseNotesTests: (String, [Test]) = ("ReleaseNotes", [
         expectEqual(notes.summary, "####### pas un titre #42 corrige le bandeau")
         expectEqual(ReleaseNotes(markdown: "- Un\n#42 suite").bullets, ["Un #42 suite"])
     },
+    Test("inlineKeepsOnlyWebLinks") {
+        let web = ReleaseNotes.inline("[site](https://vialet.app)")
+        expectEqual(web.runs.first?.link?.absoluteString, "https://vialet.app")
+        for bad in ["[x](file:///etc/passwd)", "[x](javascript:alert(1))", "[x](pico://ouvrir)"] {
+            let text = ReleaseNotes.inline(bad)
+            expect(text.runs.allSatisfy { $0.link == nil }, "lien garde : \(bad)")
+            expectEqual(String(text.characters), "x")
+        }
+    },
 ])
