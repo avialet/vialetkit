@@ -11,4 +11,5 @@ run([
     glyphTests,
     appIdentityTests,
     aboutPanelTests,
+    surfacesTests,
 ])
