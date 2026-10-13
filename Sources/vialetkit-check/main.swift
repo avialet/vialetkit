@@ -5,4 +5,5 @@ run([
     hotKeyTests,
     appInfoTests,
     textTests,
+    paletteTests,
 ])

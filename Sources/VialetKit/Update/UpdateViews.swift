@@ -29,7 +29,7 @@ public struct UpdateBanner: View {
                 Spacer(minLength: 0)
             }
             .padding(10)
-            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Theme.sea.opacity(0.13)))
+            .background(RoundedRectangle(cornerRadius: Theme.Radius.item, style: .continuous).fill(Theme.sea.opacity(0.13)))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -96,7 +96,7 @@ public struct UpdateCard: View {
                 }
                 .frame(maxHeight: 110)
                 .padding(10)
-                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.ink.opacity(0.05)))
+                .background(RoundedRectangle(cornerRadius: Theme.Radius.row, style: .continuous).fill(Theme.ink.opacity(0.05)))
             }
             Toggle("Rechercher automatiquement (une fois par jour)", isOn: $updater.autoCheck)
             if let last = updater.lastCheck {

@@ -21,8 +21,72 @@ public extension Color {
 }
 
 /// Direction commune des apps vialet.app : papier chaud, encre profonde,
-/// une couleur d'accent par app (`Brand.accent`).
+/// une palette d'accent par app, posee au lancement par `Theme.configure(_:)`.
 public enum Theme {
+    // MARK: Palette d'accent
+
+    /// Palette de l'app ; `.sea` tant que `configure` n'a pas ete appele.
+    @MainActor public static private(set) var palette: AccentPalette = .sea
+
+    /// A appeler une fois au lancement (init de l'App), avant le premier rendu.
+    @MainActor public static func configure(_ palette: AccentPalette) {
+        self.palette = palette
+    }
+
+    @MainActor public static var accent: Color { palette.color }
+    @MainActor public static var accentBackground: Color { palette.backgroundColor }
+    @MainActor public static var accentDeep: Color { palette.deepColor }
+    @MainActor public static var accentPale: Color { palette.paleColor }
+    @MainActor public static var accentNight: Color { palette.nightColor }
+    @MainActor public static var accentNightInk: Color { palette.nightInkColor }
+    /// Fond de selection (lignes, champs actifs) : accent a 14 %.
+    @MainActor public static var accentSelection: Color { palette.color.opacity(0.14) }
+    /// Bouton principal, comme sur les sites : fond deep et texte blanc en clair,
+    /// fond background et texte deep en sombre.
+    @MainActor public static var accentPrimaryButtonBackground: Color {
+        Color(light: palette.deep, dark: palette.background)
+    }
+    @MainActor public static var accentPrimaryButtonForeground: Color {
+        Color(light: 0xFFFFFF, dark: palette.deep)
+    }
+
+    // MARK: Jetons
+
+    /// Rayons des coins (style `.continuous`).
+    public enum Radius {
+        public static let key: CGFloat = 4
+        public static let icon: CGFloat = 7
+        public static let chip: CGFloat = 8
+        public static let row: CGFloat = 10
+        public static let item: CGFloat = 12
+        public static let card: CGFloat = 16
+        public static let editor: CGFloat = 18
+        public static let panel: CGFloat = 22
+    }
+
+    /// Espacements.
+    public enum Space {
+        public static let xs: CGFloat = 4
+        public static let s: CGFloat = 8
+        public static let m: CGFloat = 12
+        public static let l: CGFloat = 16
+        public static let xl: CGFloat = 20
+        public static let xxl: CGFloat = 26
+    }
+
+    public struct ShadowToken: Sendable {
+        public let color: Color
+        public let radius: CGFloat
+        public let y: CGFloat
+    }
+
+    /// Ombres : `.shadow(color: s.color, radius: s.radius, y: s.y)`.
+    public enum Shadow {
+        public static let panel = ShadowToken(color: Color.black.opacity(0.22), radius: 18, y: 8)
+    }
+
+    // MARK: Couleurs fixes
+
     public static let paper = Color(light: 0xF7F3EC, dark: 0x14161B)
     public static let sidebar = Color(light: 0xEEE7DB, dark: 0x1A1D23)
     public static let card = Color(light: 0xFFFDF9, dark: 0x21252D)

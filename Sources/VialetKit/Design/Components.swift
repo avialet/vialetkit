@@ -154,15 +154,15 @@ public struct SettingsCard<Content: View>: View {
                     .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(.white)
                     .frame(width: 22, height: 22)
-                    .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(color.gradient))
+                    .background(RoundedRectangle(cornerRadius: Theme.Radius.icon, style: .continuous).fill(color.gradient))
                 Text(title).font(Theme.ui(13.5, weight: .bold)).foregroundStyle(Theme.ink)
             }
             content
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Theme.card))
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Theme.line, lineWidth: 1))
+        .background(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous).fill(Theme.card))
+        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous).strokeBorder(Theme.line, lineWidth: 1))
     }
 }
 
