@@ -3,9 +3,10 @@
 Socle partagé des apps Mac de [vialet.app](https://app.vialet.app) : ce que chaque
 app embarque à l'identique, écrit une seule fois.
 
-- **Mises à jour intégrées** (`Updater`, `UpdateCard`, `UpdateBanner`) : lecture de la
-  dernière Release GitHub, téléchargement du DMG, vérification SHA-256, contrôle du
-  bundle, remplacement et relance. Une seule copie de ce code, pour toutes les apps.
+- **Mises à jour intégrées** (`Updater`, `UpdateNotice`, `UpdateCard`, `UpdateBanner`) : lecture
+  de la dernière Release GitHub, annonce avec le journal des changements, téléchargement du DMG,
+  vérification SHA-256, contrôle du bundle, remplacement et relance. Une seule copie de ce code,
+  pour toutes les apps.
 - **Thème** (`Theme`, voir plus bas) : papier chaud, encre profonde, palette d'accent par app,
   jetons, titres en Bricolage Grotesque, plus quelques composants
   (`Chip`, `CheckCircle`, `ProgressRing`, `AmbientBackground`, `SettingsCard`, `FlowLayout`).
@@ -25,7 +26,7 @@ Aucune dépendance externe. Swift 6, macOS 15 ou plus récent (les apps visent m
 
 ```swift
 // Package.swift
-.package(url: "https://github.com/avialet/vialetkit.git", .upToNextMinor(from: "0.2.1"))
+.package(url: "https://github.com/avialet/vialetkit.git", .upToNextMinor(from: "0.2.2"))
 // En 0.x, un changement cassant monte le mineur : epingler le mineur, pas `from:` (= < 1.0.0).
 ```
 
@@ -84,6 +85,46 @@ En 0.x, un changement d'API incompatible monte le numéro mineur ; chaque app me
 (à appeler depuis une vue) et le fait passer du serif à Bricolage Grotesque.
 La 0.2.1 ajoute, sans rien casser, le relâchement du raccourci et le panneau qui ne prend pas
 le focus (voir « Raccourci et panneau flottant »).
+La 0.2.2 ajoute, sans rien casser, le bandeau d'annonce des mises à jour et leur journal
+(voir « Annoncer les mises à jour »).
+
+## Annoncer les mises à jour
+
+Une ligne dans l'app, en haut de la fenêtre principale (ou d'un panneau), dans une pile sans
+espacement :
+
+```swift
+VStack(spacing: 0) {
+    UpdateNotice(updater: .shared)
+    // ... contenu de la fenêtre
+}
+```
+
+Le bandeau n'occupe aucune place tant qu'il n'a rien à dire. Sinon, sur une ligne aux teintes de
+l'app (`accentPale` en clair, `accentNight` en sombre), avec la plaque de son glyphe :
+
+- **Version disponible** : « Allège 0.3.0 est disponible », « Nouveautés » (déplie le journal),
+  « Plus tard » et « Installer et relancer ». « Plus tard » écarte cette version seulement
+  (clé `<App>DismissedUpdate`) : la suivante sera annoncée, et la carte des Réglages la propose
+  toujours.
+- **Installation** : avancement du téléchargement, vérification, relance ; en cas d'échec, le
+  message et « Réessayer ».
+- **Après une mise à jour** : au premier lancement d'une version plus récente que la dernière vue
+  (clé `<App>LastSeenVersion`), « Allège a été mis à jour en 0.3.0 », ses nouveautés et « OK ».
+  Les notes viennent de la dernière Release ou, au besoin, de `releases/tags/v<version>`, lues en
+  silence (hors ligne, le bandeau s'en passe).
+
+Le journal est le corps de la Release, c'est-à-dire `docs/notes/vX.Y.Z.md` : un titre
+`## App X.Y.Z` éventuel (retiré, il redit le bandeau), un chapeau facultatif puis des puces `- `,
+où le gras, le `code` et les liens sont rendus (`ReleaseNotes`). Les marges du bandeau visible se
+règlent par `padding:` (12 pt en haut et sur les côtés par défaut). L'apparition est discrète et
+se réduit à un fondu quand « Réduire les animations » est actif.
+
+La vérification automatique a lieu à chaque lancement (`checkAutomatically()`, que l'app appelle
+déjà quelques secondes après l'ouverture), puis toutes les 6 h tant que l'app tourne, jamais à
+moins de 30 min de la précédente, et seulement si l'utilisateur l'a laissée active. Elle est
+silencieuse : un échec réseau ne s'affiche pas. `UpdateBanner`, l'ancien bandeau de barre
+latérale, reste disponible ; `UpdateNotice` le remplace.
 
 ## Glyphe
 
@@ -189,8 +230,9 @@ Allege -AllegeSnapshot /tmp/captures [-AllegeSnapshotAppearance dark] [-AllegeSn
 écrit `/tmp/captures/<scénario>.png` (`<scénario>-sombre.png` en sombre), imprime
 `capture : <chemin>` par fichier puis quitte. La taille s'applique aux fenêtres
 redimensionnables. Scénarios standard : `mainWindow` (après 2 s), `settings` (entrée « Réglages… »
-du menu de l'app), `about` (panneau À propos) et `floatingPanel` (le `FloatingPanel` de l'app s'il
-existe déjà). Un scénario de l'app portant le même nom remplace le standard. La graine des
+du menu de l'app), `about` (panneau À propos), `floatingPanel` (le `FloatingPanel` de l'app s'il
+existe déjà) et `update` (le bandeau de mise à jour replié, déplié et après une mise à jour, avec
+une version fictive, sans réseau). Un scénario de l'app portant le même nom remplace le standard. La graine des
 données reste dans l'app, appelée avant :
 
 ```swift
