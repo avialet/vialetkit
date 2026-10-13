@@ -146,6 +146,12 @@ public final class Updater {
         }
     }
 
+    /// Apercu (mode capture) : montre les nouveautes de `version` comme apres une mise a jour.
+    func previewUpdated(_ version: SemanticVersion, notes: ReleaseNotes?) {
+        updatedVersion = version
+        updatedNotes = notes
+    }
+
     /// « OK » du bandeau « a ete mis a jour » : les nouveautes de cette version sont vues.
     public func acknowledgeUpdate() {
         updatedVersion = nil
@@ -283,8 +289,7 @@ public final class Updater {
         guard bundle.pathExtension == "app", FileManager.default.isWritableFile(atPath: parent.path),
               FileManager.default.isWritableFile(atPath: bundle.path) else {
             NSWorkspace.shared.open(release.pageURL)
-            failedRelease = release
-            state = .failed("\(configuration.displayName) est installé dans un dossier protégé : la page de la version s'ouvre pour un téléchargement manuel.")
+            fail(installing: release, message: "\(configuration.displayName) est installé dans un dossier protégé : la page de la version s'ouvre pour un téléchargement manuel.")
             return
         }
         let configuration = configuration
@@ -305,10 +310,15 @@ public final class Updater {
             } catch is CancellationError {
                 state = .available(release)
             } catch {
-                failedRelease = release
-                state = .failed(error.localizedDescription)
+                fail(installing: release, message: error.localizedDescription)
             }
         }
+    }
+
+    /// Echec : `release` est celle dont l'installation a echoue (nil pour une recherche).
+    func fail(installing release: ReleaseInfo?, message: String) {
+        failedRelease = release
+        state = .failed(message)
     }
 
     /// Reprend une installation qui a echoue (bouton « Reessayer » du bandeau).

@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 
 // Mode capture des apps (builds DEBUG) : chaque scenario rend une fenetre en PNG,
 // sans autorisation d'enregistrement d'ecran (voir WindowSnapshot).
@@ -99,8 +100,9 @@ public enum SnapshotRunner {
     }
 
     /// `mainWindow` (apres 2 s), `settings` (fenetre de la scene Settings, ouverte par le menu), `about`
-    /// (panneau A propos de l'identite) et `floatingPanel` (le FloatingPanel de l'app s'il existe :
-    /// l'app l'ouvre dans sa graine, ou donne son propre scenario `floatingPanel`).
+    /// (panneau A propos de l'identite), `floatingPanel` (le FloatingPanel de l'app s'il existe :
+    /// l'app l'ouvre dans sa graine, ou donne son propre scenario `floatingPanel`) et `update`
+    /// (UpdateNotice replie puis deplie, avec une version fictive : aucun reseau, rien d'ecrit).
     public static func standardScenarios(mainWindow: @escaping @MainActor () -> NSWindow?,
                                          identity: AppIdentity) -> [SnapshotScenario] {
         return [
@@ -122,7 +124,49 @@ public enum SnapshotRunner {
                 }
                 return panel
             },
+            SnapshotScenario("update") {
+                let window = updateNoticeWindow(UpdaterConfiguration(identity), current: AppInfo.semanticVersion)
+                window.orderFrontRegardless()
+                try await Task.sleep(for: .milliseconds(500))
+                return window
+            },
         ]
+    }
+
+    /// Fenetre d'apercu du bandeau de mise a jour : annonce repliee, annonce depliee, puis nouveautes
+    /// apres une mise a jour, sur le papier de l'app, 620 pt de large.
+    static func updateNoticeWindow(_ configuration: UpdaterConfiguration, current: SemanticVersion) -> NSWindow {
+        let next = SemanticVersion(current.major, current.minor + 1, 0)
+        let notes = """
+        ## \(configuration.displayName) \(next)
+
+        - **Nouveau** : les nouveaut\u{00E9}s de chaque version s'affichent dans ce bandeau.
+        - \u{00AB}\u{00A0}Plus tard\u{00A0}\u{00BB} \u{00E9}carte cette version ; la suivante sera annonc\u{00E9}e.
+        """
+        let release = ReleaseInfo.sample(configuration, version: next, notes: notes)
+        func updater() -> Updater {
+            let updater = Updater(configuration: configuration, defaults: nil, currentVersion: current)
+            updater.apply(latest: release)
+            return updater
+        }
+        let updated = Updater(configuration: configuration, defaults: nil, currentVersion: next)
+        updated.previewUpdated(next, notes: release.releaseNotes)
+        let content = VStack(spacing: 0) {
+            UpdateNotice(updater: updater(), padding: UpdateNotice.defaultPadding, expanded: false)
+            UpdateNotice(updater: updater(), padding: UpdateNotice.defaultPadding, expanded: true)
+            UpdateNotice(updater: updated, padding: UpdateNotice.defaultPadding, expanded: false)
+        }
+        .padding(.bottom, 12)
+        .frame(width: 620)
+        .background(Theme.paper)
+        let hosting = NSHostingView(rootView: content)
+        let window = NSWindow(contentRect: NSRect(origin: .zero, size: hosting.fittingSize),
+                              styleMask: [.titled, .closable], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.title = "UpdateNotice"
+        window.contentView = hosting
+        window.setContentSize(hosting.fittingSize)
+        return window
     }
 
     // MARK: - Execution

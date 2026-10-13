@@ -1,4 +1,6 @@
+import AppKit
 import Foundation
+import SwiftUI
 @testable import VialetKit
 
 private let identity = AppIdentity(name: "Allege", displayName: "All\u{00E8}ge", repository: "avialet/allege",
@@ -114,5 +116,67 @@ let updateNoticeTests: (String, [Test]) = ("UpdateNotice", [
         expectEqual(r.dmgName, "Allege-0.3.0.dmg")
         expectEqual(r.pageURL.absoluteString, "https://github.com/avialet/allege/releases/tag/v0.3.0")
         expectEqual(r.releaseNotes.bullets, ["A", "B"])
+    },
+    Test("noticeModeFollowsUpdater") {
+        MainActor.assumeIsolated {
+            withDefaults { defaults in
+                defaults.set("0.1.0", forKey: "AllegeLastSeenVersion")
+                let updater = Updater(configuration: configuration, defaults: defaults, currentVersion: SemanticVersion(0, 2, 0))
+                expectEqual(UpdateNotice.mode(for: updater), .updated(SemanticVersion(0, 2, 0), nil))
+                let release = sample(SemanticVersion(0, 3, 0))
+                updater.apply(latest: release)
+                expectEqual(UpdateNotice.mode(for: updater), .available(release), "la version nouvelle passe avant")
+                updater.dismissAvailable()
+                expectEqual(UpdateNotice.mode(for: updater), .updated(SemanticVersion(0, 2, 0), nil))
+                updater.acknowledgeUpdate()
+                expect(UpdateNotice.mode(for: updater) == nil, "rien a annoncer")
+            }
+        }
+    },
+    Test("noticeShowsInstallFailureOnly") {
+        MainActor.assumeIsolated {
+            let updater = Updater(configuration: configuration, defaults: nil, currentVersion: SemanticVersion(0, 2, 0))
+            let release = sample(SemanticVersion(0, 3, 0))
+            updater.apply(latest: release)
+            updater.fail(installing: release, message: "Corrompu")
+            expectEqual(UpdateNotice.mode(for: updater), .failure("Corrompu"))
+            updater.dismissAvailable()
+            expect(UpdateNotice.mode(for: updater) == nil, "Plus tard ecarte aussi apres un echec")
+            expect(updater.available != nil)
+            updater.dismissError()
+            updater.fail(installing: nil, message: "GitHub a repondu 500.")
+            expect(UpdateNotice.mode(for: updater) == nil, "echec d'une recherche : pas dans le bandeau")
+        }
+    },
+    Test("noticeKindIgnoresProgress") {
+        expectEqual(UpdateNotice.Mode.progress(.downloading(0.1)).kind, UpdateNotice.Mode.progress(.downloading(0.9)).kind)
+        expect(UpdateNotice.Mode.progress(.verifying).kind != UpdateNotice.Mode.failure("x").kind)
+    },
+    Test("standardScenariosIncludeUpdate") {
+        MainActor.assumeIsolated {
+            let names = SnapshotRunner.standardScenarios(mainWindow: { nil }, identity: identity).map(\.name)
+            expectEqual(names, ["mainWindow", "settings", "about", "floatingPanel", "update"])
+        }
+    },
+    Test("updatePreviewWindowShowsThreeNotices") {
+        MainActor.assumeIsolated {
+            _ = NSApplication.shared
+            let window = SnapshotRunner.updateNoticeWindow(configuration, current: SemanticVersion(0, 2, 0))
+            let size = window.contentView?.fittingSize ?? .zero
+            expectEqual(size.width, 620)
+            // Trois bandeaux d'au moins 46 pt, dont un deplie.
+            expect(size.height > 3 * 46 + 40, "hauteur \(size.height)")
+        }
+    },
+    Test("hiddenNoticeTakesNoSpace") {
+        MainActor.assumeIsolated {
+            _ = NSApplication.shared
+            let updater = Updater(configuration: configuration, defaults: nil, currentVersion: SemanticVersion(0, 2, 0))
+            let host = NSHostingView(rootView: UpdateNotice(updater: updater).frame(width: 400))
+            expectEqual(host.fittingSize.height, 0)
+            updater.apply(latest: sample(SemanticVersion(0, 3, 0)))
+            let shown = NSHostingView(rootView: UpdateNotice(updater: updater).frame(width: 400))
+            expect(shown.fittingSize.height > 40, "hauteur \(shown.fittingSize.height)")
+        }
     },
 ])
