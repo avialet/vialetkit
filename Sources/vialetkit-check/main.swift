@@ -13,4 +13,5 @@ run([
     aboutPanelTests,
     surfacesTests,
     snapshotArgsTests,
+    floatingPanelTests,
 ])
