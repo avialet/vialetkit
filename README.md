@@ -258,7 +258,8 @@ func application(_ application: NSApplication, open urls: [URL]) { AppActions.sh
 ```
 
 Le schéma est celui de `CFBundleURLSchemes` (par défaut le nom en minuscules). `publish()` n'écrit
-rien pour une app hors d'un dossier Applications (`build/`, image disque) ; `force: true` passe outre.
+rien pour une app hors d'un dossier Applications (`build/`, image disque ; liens symboliques résolus,
+`HubManifest.isInApplications(_:roots:)`) ; `force: true` passe outre.
 
 **Fiche pour Vialet (format 1).** `publish()` écrit
 `~/Library/Application Support/Vialet/apps/<bundle id>.json` (`HubManifest`), puis envoie la

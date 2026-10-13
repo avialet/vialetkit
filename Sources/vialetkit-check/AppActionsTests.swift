@@ -222,4 +222,32 @@ let hubManifestTests: (String, [Test]) = ("HubManifest", [
             expectEqual(HubManifest.loadAll(from: dir).map(\.bundleIdentifier), ["fr.vialet.pico"])
         }
     },
+    Test("symlinksLeavingApplicationsAreRejected") {
+        try withDirectory { dir in
+            let fm = FileManager.default
+            let root = dir.appendingPathComponent("Applications"), outside = dir.appendingPathComponent("Ailleurs")
+            for d in [root, outside, root.appendingPathComponent("Pico.app"), outside.appendingPathComponent("Evil.app"),
+                      outside.appendingPathComponent("Dossier/Evil.app")] {
+                try fm.createDirectory(at: d, withIntermediateDirectories: true)
+            }
+            try fm.createSymbolicLink(at: root.appendingPathComponent("Lien.app"), withDestinationURL: outside.appendingPathComponent("Evil.app"))
+            try fm.createSymbolicLink(at: root.appendingPathComponent("Dossier"), withDestinationURL: outside.appendingPathComponent("Dossier"))
+            try fm.createSymbolicLink(at: root.appendingPathComponent("Alias.app"), withDestinationURL: root.appendingPathComponent("Pico.app"))
+            let roots = [root]
+            expect(HubManifest.isInApplications(root.appendingPathComponent("Pico.app"), roots: roots))
+            expect(HubManifest.isInApplications(root.appendingPathComponent("Alias.app"), roots: roots), "lien qui reste dans la racine")
+            expect(!HubManifest.isInApplications(root.appendingPathComponent("Lien.app"), roots: roots), ".app en lien vers l'exterieur")
+            expect(!HubManifest.isInApplications(root.appendingPathComponent("Dossier/Evil.app"), roots: roots), "dossier en lien vers l'exterieur")
+            expect(!HubManifest.isInApplications(outside.appendingPathComponent("Evil.app"), roots: roots))
+            // Racine elle-meme en lien symbolique : comparee resolue.
+            let linkedRoot = dir.appendingPathComponent("RacineLien")
+            try fm.createSymbolicLink(at: linkedRoot, withDestinationURL: root)
+            expect(HubManifest.isInApplications(root.appendingPathComponent("Pico.app"), roots: [linkedRoot]))
+            expect(HubManifest.isInApplications(linkedRoot.appendingPathComponent("Pico.app"), roots: [root]))
+        }
+    },
+    Test("applicationRoots") {
+        let home = URL(fileURLWithPath: "/Users/a")
+        expectEqual(HubManifest.applicationRoots(home: home).map(\.path), ["/Applications", "/Users/a/Applications"])
+    },
 ])

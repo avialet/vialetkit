@@ -143,9 +143,22 @@ public struct HubManifest: Codable, Equatable, Sendable {
     /// Publier seulement depuis un dossier Applications (`/Applications`, `~/Applications`, ou un
     /// sous-dossier) : pas depuis `build/`, une image disque ou une translocation.
     public static func shouldPublish(bundleURL: URL, home: URL) -> Bool {
-        let path = bundleURL.standardizedFileURL.path
-        let roots = ["/Applications/", home.standardizedFileURL.path + "/Applications/"]
-        return roots.contains { path.hasPrefix($0) }
+        isInApplications(bundleURL, roots: applicationRoots(home: home))
+    }
+
+    /// `/Applications` et `~/Applications`.
+    public static func applicationRoots(home: URL) -> [URL] {
+        [URL(fileURLWithPath: "/Applications"), home.appendingPathComponent("Applications")]
+    }
+
+    /// `url` est dans une des racines (ou un sous-dossier), liens symboliques resolus des deux cotes :
+    /// un `.app` ou un dossier en lien qui sort des racines est refuse.
+    public static func isInApplications(_ url: URL, roots: [URL]) -> Bool {
+        let path = url.standardizedFileURL.resolvingSymlinksInPath().path
+        return roots.contains { root in
+            let base = root.standardizedFileURL.resolvingSymlinksInPath().path
+            return path.hasPrefix(base.hasSuffix("/") ? base : base + "/")
+        }
     }
 
     /// Notification distribuee par une app apres avoir publie sa fiche : Vialet la relit.
