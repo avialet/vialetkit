@@ -286,8 +286,11 @@ notification distribuée `fr.vialet.apps.changed` :
 Tous les champs sont obligatoires sauf `shortcut` (raccourci de l'app, pour information). Les
 teintes sont en `#RRGGBB`. Un lecteur ignore les champs inconnus et lit un format plus récent pour
 les champs qu'il connaît : un ajout garde le format, un changement de sens le monte.
-`HubManifest.decode` retire les actions à l'identifiant invalide ou réservé ;
-`HubManifest.loadAll(from:)` lit un dossier entier.
+Le dossier est modifiable par tout processus local : une fiche lue n'est pas digne de confiance.
+`HubManifest.decode` refuse plus de 64 Ko, retire les actions à l'identifiant invalide ou réservé
+et celles dont le libellé ou le symbole dépasse 60 caractères, garde 8 actions au plus et retire
+un glyphe de plus de 2 000 caractères ; `HubManifest.loadAll(from:)` lit un dossier entier, sans
+ouvrir un fichier trop gros. Le lecteur valide lui-même le reste (schéma, dépôt, chemin de l'app).
 
 ## Raccourci et panneau flottant
 

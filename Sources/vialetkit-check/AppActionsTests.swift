@@ -187,4 +187,39 @@ let hubManifestTests: (String, [Test]) = ("HubManifest", [
             expectEqual(HubManifest.loadAll(from: dir.appendingPathComponent("absent")).count, 0)
         }
     },
+    Test("boundsOnUntrustedManifests") {
+        func manifest(actions: Int, title: String = "Ok", symbol: String = "plus", glyph: String = "") -> Data {
+            let list = (0..<actions).map { #"{"id": "a\#($0)", "title": "\#(title)", "symbol": "\#(symbol)"}"# }
+            return Data("""
+            {"format": 1, "bundleIdentifier": "fr.vialet.pico", "name": "Pico", "displayName": "Pico",
+             "version": "0.3.0", "appPath": "/Applications/Pico.app", "scheme": "pico", "repository": "avialet/pico",
+             "site": "https://pico.vialet.app", "glyph": "\(glyph)", "strokeDeep": false,
+             "palette": {"accent": "#2F6FEB", "background": "#2F6FEB", "deep": "#00001F", "pale": "#EBF2FF",
+                         "night": "#0F1A2F", "nightInk": "#C4D8FD"},
+             "actions": [\(list.joined(separator: ","))]}
+            """.utf8)
+        }
+        expectEqual(HubManifest.decode(manifest(actions: 12))?.actions.count, 8, "au plus 8 actions")
+        expectEqual(HubManifest.decode(manifest(actions: 2, title: String(repeating: "t", count: 61)))?.actions.count, 0, "titre > 60")
+        expectEqual(HubManifest.decode(manifest(actions: 2, title: String(repeating: "t", count: 60)))?.actions.count, 2)
+        expectEqual(HubManifest.decode(manifest(actions: 2, symbol: String(repeating: "s", count: 61)))?.actions.count, 0, "symbole > 60")
+        expectEqual(HubManifest.decode(manifest(actions: 0, glyph: "M " + String(repeating: "1 ", count: 1000)))?.glyph, "", "glyphe > 2000 : retire")
+        expectEqual(HubManifest.decode(manifest(actions: 0, glyph: "M 1 1 L 2 2"))?.glyph, "M 1 1 L 2 2")
+        var big = manifest(actions: 0)
+        big.append(Data(repeating: 0x20, count: HubManifest.maxFileSize))
+        expectEqual(HubManifest.decode(big), nil, "fiche > 64 Ko")
+        expectEqual(HubManifest.maxFileSize, 64 * 1024)
+        expectEqual(HubManifest.maxActions, 8)
+    },
+    Test("loadAllSkipsOversizedFiles") {
+        try withDirectory { dir in
+            let m = HubManifest(identity: pico, version: "0.2.0", appPath: "/Applications/Pico.app", scheme: "pico", actions: [])
+            try m.write(to: dir)
+            var big = try m.encoded()
+            big.append(Data(repeating: 0x20, count: HubManifest.maxFileSize))
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            try big.write(to: dir.appendingPathComponent("fr.vialet.gros.json"))
+            expectEqual(HubManifest.loadAll(from: dir).map(\.bundleIdentifier), ["fr.vialet.pico"])
+        }
+    },
 ])

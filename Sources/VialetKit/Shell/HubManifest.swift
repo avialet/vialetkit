@@ -8,6 +8,17 @@ public struct HubManifest: Codable, Equatable, Sendable {
     /// Format ecrit par cette version du kit.
     public static let currentFormat = 1
 
+    // Bornes d'une fiche lue : le dossier est modifiable par tout processus local, une fiche n'est
+    // pas digne de confiance.
+    /// Taille maximale d'un fichier (64 Ko) ; au-dela, il est ignore sans etre lu.
+    public static let maxFileSize = 64 * 1024
+    /// Actions gardees au plus (les premieres valides).
+    public static let maxActions = 8
+    /// Longueur maximale d'un libelle ou d'un symbole d'action ; au-dela, l'action est retiree.
+    public static let maxActionTextLength = 60
+    /// Longueur maximale du glyphe ; au-dela, il est retire (plaque sans trait).
+    public static let maxGlyphLength = 2000
+
     /// Teintes de l'app en `#RRGGBB` (voir `AccentPalette`).
     public struct Palette: Codable, Equatable, Sendable {
         public var accent, background, deep, pale, night, nightInk: String
@@ -71,12 +82,19 @@ public struct HubManifest: Codable, Equatable, Sendable {
         return try encoder.encode(self)
     }
 
-    /// nil si le JSON est illisible, sans format (>= 1) ou s'il manque un champ. Les actions dont
-    /// l'identifiant est invalide ou reserve sont retirees.
+    /// nil si les donnees depassent `maxFileSize`, si le JSON est illisible, sans format (>= 1) ou s'il
+    /// manque un champ. Les actions a l'identifiant invalide ou reserve, ou au libelle ou symbole trop
+    /// long, sont retirees ; `maxActions` au plus ; un glyphe trop long est retire.
     public static func decode(_ data: Data) -> HubManifest? {
-        guard var m = try? JSONDecoder().decode(HubManifest.self, from: data), m.format >= 1,
+        guard data.count <= maxFileSize,
+              var m = try? JSONDecoder().decode(HubManifest.self, from: data), m.format >= 1,
               !m.bundleIdentifier.isEmpty else { return nil }
-        m.actions = m.actions.filter { AppAction.isValidIdentifier($0.id) && !AppURLCommand.reserved.contains($0.id) }
+        m.actions = Array(m.actions.filter { a in
+            AppAction.isValidIdentifier(a.id) && !AppURLCommand.reserved.contains(a.id)
+                && a.title.count <= maxActionTextLength && a.symbol.count <= maxActionTextLength
+                && (a.shortcut?.count ?? 0) <= maxActionTextLength
+        }.prefix(maxActions))
+        if m.glyph.count > maxGlyphLength { m.glyph = "" }
         return m
     }
 
@@ -108,12 +126,18 @@ public struct HubManifest: Codable, Equatable, Sendable {
         try encoded().write(to: Self.fileURL(bundleIdentifier: bundleIdentifier, in: directory), options: .atomic)
     }
 
-    /// Toutes les fiches lisibles d'un dossier (`*.json`), triees par bundle id.
+    /// Toutes les fiches lisibles d'un dossier (`*.json`, fichiers ordinaires de `maxFileSize` au plus,
+    /// taille lue avant le contenu), triees par bundle id.
     public static func loadAll(from directory: URL) -> [HubManifest] {
-        let files = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? []
-        return files.filter { $0.pathExtension == "json" }
-            .compactMap { (try? Data(contentsOf: $0)).flatMap(decode) }
-            .sorted { $0.bundleIdentifier < $1.bundleIdentifier }
+        let keys: [URLResourceKey] = [.fileSizeKey, .isRegularFileKey]
+        let files = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: keys)) ?? []
+        return files.filter { url in
+            guard url.pathExtension == "json", let values = try? url.resourceValues(forKeys: Set(keys)),
+                  values.isRegularFile == true, let size = values.fileSize else { return false }
+            return size <= maxFileSize
+        }
+        .compactMap { (try? Data(contentsOf: $0)).flatMap(decode) }
+        .sorted { $0.bundleIdentifier < $1.bundleIdentifier }
     }
 
     /// Publier seulement depuis un dossier Applications (`/Applications`, `~/Applications`, ou un
