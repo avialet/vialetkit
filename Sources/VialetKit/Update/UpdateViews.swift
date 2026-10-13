@@ -98,7 +98,7 @@ public struct UpdateCard: View {
                 .padding(10)
                 .background(RoundedRectangle(cornerRadius: Theme.Radius.row, style: .continuous).fill(Theme.ink.opacity(0.05)))
             }
-            Toggle("Rechercher automatiquement (une fois par jour)", isOn: $updater.autoCheck)
+            Toggle("Rechercher automatiquement (au lancement, puis toutes les 6 h)", isOn: $updater.autoCheck)
             if let last = updater.lastCheck {
                 Text("Dernière recherche : \(last.formatted(.relative(presentation: .named)))")
                     .font(Theme.ui(11.5)).foregroundStyle(Theme.inkFaint)

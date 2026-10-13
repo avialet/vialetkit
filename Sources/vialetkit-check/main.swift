@@ -2,6 +2,7 @@ import VialetKit
 
 run([
     updateTests,
+    updateScheduleTests,
     hotKeyTests,
     appInfoTests,
     textTests,

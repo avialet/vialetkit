@@ -58,6 +58,10 @@ public final class Updater {
 
     public let currentVersion: SemanticVersion
     private var task: Task<Void, Never>?
+    private var periodicTask: Task<Void, Never>?
+    /// Lecture de la derniere Release en cours (verification manuelle ou silencieuse).
+    private var isFetching = false
+    private var fetchIsUserInitiated = false
 
     public init(configuration: UpdaterConfiguration) {
         self.configuration = configuration
@@ -80,26 +84,67 @@ public final class Updater {
 
     // MARK: Verification de version
 
-    /// Au lancement : au plus une verification par jour, si l'utilisateur l'accepte.
+    /// Intervalle des verifications automatiques tant que l'app tourne (6 h).
+    nonisolated static let automaticInterval: TimeInterval = 6 * 3600
+    /// Plancher entre deux verifications automatiques (30 min), pour le quota de l'API GitHub.
+    nonisolated static let automaticFloor: TimeInterval = 30 * 60
+
+    /// Decision d'une verification automatique : jamais si l'utilisateur l'a coupee, sinon des
+    /// qu'au moins 30 min separent `now` de la derniere verification reussie (ou qu'il n'y en a pas,
+    /// ou que l'horloge a recule).
+    nonisolated static func shouldCheckAutomatically(now: Date, lastCheck: Date?, autoCheck: Bool) -> Bool {
+        guard autoCheck else { return false }
+        guard let lastCheck else { return true }
+        let elapsed = now.timeIntervalSince(lastCheck)
+        return elapsed < 0 || elapsed >= automaticFloor
+    }
+
+    /// A chaque lancement (l'app l'appelle quelques secondes apres l'ouverture), puis toutes les 6 h
+    /// tant que l'app tourne, avec un plancher de 30 min entre deux verifications et si
+    /// l'utilisateur l'accepte. Une verification automatique est silencieuse : l'etat ne passe
+    /// pas par `.checking` et un echec reseau ne change rien.
     public func checkAutomatically() {
-        guard autoCheck else { return }
-        if let lastCheck, Date().timeIntervalSince(lastCheck) < 24 * 3600 { return }
+        startPeriodicChecks()
+        guard Self.shouldCheckAutomatically(now: Date(), lastCheck: lastCheck, autoCheck: autoCheck) else { return }
         check(userInitiated: false)
     }
 
+    private func startPeriodicChecks() {
+        guard periodicTask == nil else { return }
+        periodicTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(Self.automaticInterval))
+                guard let self else { return }
+                if Self.shouldCheckAutomatically(now: Date(), lastCheck: lastCheck, autoCheck: autoCheck) {
+                    check(userInitiated: false)
+                }
+            }
+        }
+    }
+
     public func check(userInitiated: Bool = true) {
+        if isFetching {
+            // Une demande de l'utilisateur pendant une verification silencieuse la rend visible.
+            if userInitiated, !fetchIsUserInitiated, !isBusy { fetchIsUserInitiated = true; state = .checking }
+            return
+        }
         guard !isBusy else { return }
-        state = .checking
+        isFetching = true
+        fetchIsUserInitiated = userInitiated
+        if userInitiated { state = .checking }
         let configuration = configuration
         task = Task { [weak self] in
             guard let self else { return }
+            defer { isFetching = false }
             do {
                 let release = try await Self.fetchLatest(configuration)
                 lastCheck = Date()
                 UserDefaults.standard.set(lastCheck, forKey: configuration.lastCheckKey)
+                // Une verification silencieuse ne remplace pas une installation lancee entre-temps.
+                guard fetchIsUserInitiated || !isBusy else { return }
                 state = release.map { $0.version > currentVersion ? .available($0) : .upToDate } ?? .upToDate
             } catch {
-                state = userInitiated ? .failed(error.localizedDescription) : .idle
+                if fetchIsUserInitiated { state = .failed(error.localizedDescription) }
             }
         }
     }
