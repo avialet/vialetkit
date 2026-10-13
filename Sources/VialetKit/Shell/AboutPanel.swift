@@ -22,7 +22,8 @@ public enum AboutPanel {
         ]
     }
 
-    /// Credit centre en police systeme 11 : auteur, licence, puis deux liens (site, depot).
+    /// Credit centre en police systeme 11 : auteur, licence (labelColor), puis deux liens
+    /// (site, depot) en couleur de lien systeme.
     public static func credits(_ identity: AppIdentity) -> NSAttributedString {
         let style = NSMutableParagraphStyle()
         style.alignment = .center
@@ -34,7 +35,8 @@ public enum AboutPanel {
         let text = NSMutableAttributedString()
         func append(_ s: String, link: URL? = nil) {
             var attrs = base
-            if let link { attrs[.link] = link }
+            // Lien : pas de couleur posee, AppKit garde la couleur de lien systeme.
+            if let link { attrs[.link] = link; attrs[.foregroundColor] = nil }
             text.append(NSAttributedString(string: s, attributes: attrs))
         }
         append("Un projet d'\(identity.author)\nLicence \(identity.license)\n")

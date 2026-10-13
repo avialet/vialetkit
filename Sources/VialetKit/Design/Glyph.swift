@@ -99,7 +99,8 @@ public enum GlyphImage {
 
     /// Plaque plate de `pixels` cote (meme geometrie que drawPlate de scripts/plaque.swift,
     /// en mode plein et plat) : carre arrondi (rayon 22,45 %), fond accent ou blanc si `inverse`,
-    /// glyphe en trait blanc, accent si `inverse`, deep si `strokeDeep`. Glyphe vide : sans trait.
+    /// glyphe en trait blanc, accent si `inverse`, deep si `strokeDeep`.
+    /// Glyphe vide ou invalide : plaque sans trait.
     public static func plate(_ palette: AccentPalette, glyph: String, pixels: Int,
                              inverse: Bool = false, strokeDeep: Bool = false) -> NSImage {
         let side = CGFloat(pixels)

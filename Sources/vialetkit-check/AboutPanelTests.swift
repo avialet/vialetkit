@@ -36,6 +36,19 @@ let aboutPanelTests: (String, [Test]) = ("AboutPanel", [
             expect(ok, "police 11 et paragraphe centre partout")
         }
     },
+    Test("linksKeepSystemLinkColor") {
+        MainActor.assumeIsolated {
+            let credits = AboutPanel.credits(allegeIdentity)
+            credits.enumerateAttributes(in: NSRange(location: 0, length: credits.length)) { attrs, range, _ in
+                let part = (credits.string as NSString).substring(with: range)
+                if attrs[.link] != nil {
+                    expect(attrs[.foregroundColor] == nil, "lien colore : \(part)")
+                } else {
+                    expect(attrs[.foregroundColor] as? NSColor == NSColor.labelColor, "texte sans labelColor : \(part)")
+                }
+            }
+        }
+    },
     Test("options") {
         MainActor.assumeIsolated {
             let o = AboutPanel.options(allegeIdentity)

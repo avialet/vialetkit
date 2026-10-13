@@ -58,12 +58,36 @@ let glyphTests: (String, [Test]) = ("Glyph", [
             expect((rep.colorAt(x: 32, y: 32)?.alphaComponent ?? 0) > 0, "centre transparent")
             expectEqual(rep.colorAt(x: 0, y: 0)?.alphaComponent ?? 1, 0, "coin arrondi transparent")
         }
+        // Trait dessine : (32, 32) est sur la verticale x = 50 du glyphe d'Allege, (20, 32) sur le fond.
+        let sea = AccentPalette.sea
+        for (inverse, strokeDeep, stroke, fill) in [(false, true, sea.deep, sea.accent),
+                                                     (true, false, sea.accent, UInt32(0xFFFFFF))] {
+            let image = GlyphImage.plate(sea, glyph: realGlyphs[1].1, pixels: 64,
+                                         inverse: inverse, strokeDeep: strokeDeep)
+            let rep = image.representations.first as? NSBitmapImageRep
+            let label = inverse ? "inverse" : "strokeDeep"
+            expectPixel(rep, x: 32, y: 32, stroke, "\(label) : trait")
+            expectPixel(rep, x: 20, y: 32, fill, "\(label) : fond")
+        }
         // Glyphe vide : plaque sans trait, pixel central a la couleur de l'accent.
         let bare = GlyphImage.plate(.sea, glyph: "", pixels: 64)
         let c = (bare.representations.first as? NSBitmapImageRep)?.colorAt(x: 32, y: 32)?.usingColorSpace(.sRGB)
         expect(abs((c?.blueComponent ?? 0) - CGFloat(0xEB) / 255) < 0.02, "accent \(String(describing: c))")
     },
 ])
+
+/// Echantillons bruts du pixel (sRGB 8 bits, opaque) compares a `hex`, a 2 pres.
+private func expectPixel(_ rep: NSBitmapImageRep?, x: Int, y: Int, _ hex: UInt32, _ message: String,
+                         file: StaticString = #filePath, line: UInt = #line) {
+    guard let rep, rep.samplesPerPixel >= 3, rep.bitsPerSample == 8 else {
+        expect(false, "\(message) : pas de bitmap 8 bits", file: file, line: line); return
+    }
+    var p = [Int](repeating: 0, count: rep.samplesPerPixel)
+    rep.getPixel(&p, atX: x, y: y)
+    let want = [Int((hex >> 16) & 0xFF), Int((hex >> 8) & 0xFF), Int(hex & 0xFF)]
+    let close = zip(want, p.prefix(3)).allSatisfy { abs($0 - $1) <= 2 }
+    expect(close, "\(message) : \(Array(p.prefix(3))) attendu \(want)", file: file, line: line)
+}
 
 private func expectThrowsGlyph(_ expected: GlyphError, _ body: () throws -> Void,
                                file: StaticString = #filePath, line: UInt = #line) {
