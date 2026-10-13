@@ -135,11 +135,14 @@ public final class HotKeyController {
         }
     }
     public private(set) var isTaken = false
+    /// Raccourci propre a l'app (`initial`), celui que retablit le bouton des reglages.
+    public let defaultShortcut: HotKeyShortcut
 
     /// `defaultsKey` : cle UserDefaults (ex. "AllegeHotKey"). `logName` : nom de l'app dans les journaux.
     public init(defaultsKey: String, logName: String = AppInfo.displayName, initial: HotKeyShortcut = .default) {
         self.defaultsKey = defaultsKey
         self.logName = logName
+        self.defaultShortcut = initial
         if let data = UserDefaults.standard.data(forKey: defaultsKey),
            let saved = try? JSONDecoder().decode(HotKeyShortcut.self, from: data) {
             shortcut = saved
