@@ -14,7 +14,8 @@ app embarque à l'identique, écrit une seule fois.
   `ShortcutRecorder`), panneau flottant (`FloatingPanelController`), fenêtre principale
   (`WindowSummoner`), apparence (`AppearanceChoice`), ouverture à la connexion (`LaunchAtLogin`),
   version lue dans le bundle (`AppInfo`), panneau À propos (`AboutPanel`, `AboutCommands`),
-  icône de barre des menus (`MenuBarIcon`).
+  icône de barre des menus (`MenuBarIcon`, `MenuBarPresence`), actions rapides par URL et fiche
+  pour l'app Vialet (`AppActions`, `HubManifest`).
 - **Surfaces communes** (`Wordmark`, `SectionHeader`, `PanelCard`, `KeyHint`, `ShortcutFooter`,
   `SettingsScreen`) et **mode capture** (`SnapshotRunner`), voir plus bas.
 - **Identité** (`AppIdentity`) : nom, dépôt, bundle, palette et glyphe déclarés une fois ;
@@ -26,7 +27,7 @@ Aucune dépendance externe. Swift 6, macOS 15 ou plus récent (les apps visent m
 
 ```swift
 // Package.swift
-.package(url: "https://github.com/avialet/vialetkit.git", .upToNextMinor(from: "0.2.3"))
+.package(url: "https://github.com/avialet/vialetkit.git", .upToNextMinor(from: "0.2.5"))
 // En 0.x, un changement cassant monte le mineur : epingler le mineur, pas `from:` (= < 1.0.0).
 ```
 
@@ -195,11 +196,9 @@ Les motifs que chaque app recopiait, à l'identique :
 
 ```swift
 struct SettingsView: View {
-    @AppStorage(Brand.identity.key("MenuBar")) private var menuBarVisible = true
-
     var body: some View {
         SettingsScreen(app: Brand.identity, hotKey: .shared, updater: .shared,
-                       menuBarVisible: $menuBarVisible,
+                       menuBar: MenuBarPresence.shared,
                        hotKeyHint: "Depuis n'importe quelle app : affiche ou masque Allège.",
                        width: 480) {
             SettingsCard(icon: "doc.on.clipboard", color: Theme.accent, title: "Historique") { … }
@@ -208,7 +207,86 @@ struct SettingsView: View {
 }
 ```
 
+`menuBar:` donne la ligne « Icône dans la barre des menus : Automatique / Toujours / Jamais » et sa
+légende (voir plus bas) ; `nil` la retire (app qui n'est qu'une icône de barre des menus).
+`hotKeyEnabled:` (facultatif) ajoute l'interrupteur « Activer le raccourci » à la carte Raccourci
+global ; `alwaysOnHint:` remplace la légende de la carte Toujours là. L'ancienne forme
+`menuBarVisible: $booleen` (simple interrupteur) reste acceptée.
+
 Sans carte propre à l'app, la fermeture `extra` s'omet.
+
+## Vialet : barre des menus et actions rapides
+
+L'app **Vialet** (`fr.vialet.vialet`) rassemble toutes les apps dans une seule icône de barre des
+menus. Le kit fournit aux apps ce qu'il faut pour s'y ranger, sans retoucher Vialet à chaque
+nouvelle app.
+
+**Icône de barre des menus.** `MenuBarPresence` range le choix de l'utilisateur sous
+`<App>MenuBarMode` : `auto` (défaut) masque l'icône quand Vialet est installée (LaunchServices,
+hors corbeille), `shown` et `hidden` la forcent. L'ancien booléen `<App>MenuBar` est migré une fois
+(false donne `hidden`, true ou absent `auto`). La présence est réévaluée à l'activation de l'app
+et à la notification distribuée `fr.vialet.hub.changed` (envoyée par Vialet à son lancement et à
+sa fermeture). Si l'utilisateur retire l'icône de la barre (⌘-glisser), le mode passe à `hidden`.
+
+```swift
+extension MenuBarPresence { static let shared = MenuBarPresence(app: Brand.identity) }
+
+MenuBarExtra(isInserted: MenuBarPresence.shared.binding) { MenuBarContent() } label: { … }
+```
+
+**Actions rapides.** Une app répond aux URL `<nom>://<action>` (`pico://new`, `chuchote://dicter`).
+`AppURLCommand.parse(_:scheme:)` les lit : `<nom>://` et `<nom>://open` montrent l'app,
+`<nom>://update` vérifie les mises à jour (lien « Mise à jour disponible » de Vialet), le reste est
+une action déclarée (identifiant en minuscules ASCII, chiffres et tirets, 40 caractères au plus ;
+`open` et `update` sont réservés). `AppActions` tient le registre, aiguille les URL (une action
+inconnue montre l'app) et publie la fiche de l'app pour Vialet :
+
+```swift
+extension AppActions {
+    static let shared = AppActions(Brand.identity, open: { WindowSummoner.show() },
+                                   checkForUpdates: { WindowSummoner.show(); Updater.shared.check() })
+}
+
+// applicationDidFinishLaunching (apres le mode capture)
+AppActions.shared.register(AppAction("new", title: "Nouvelle tâche", symbol: "plus", shortcut: "⌘N")) {
+    AppState.shared.newTask()
+}
+AppActions.shared.publish()
+
+func application(_ application: NSApplication, open urls: [URL]) { AppActions.shared.handle(urls) }
+```
+
+Le schéma est celui de `CFBundleURLSchemes` (par défaut le nom en minuscules). `publish()` n'écrit
+rien pour une app hors d'un dossier Applications (`build/`, image disque) ; `force: true` passe outre.
+
+**Fiche pour Vialet (format 1).** `publish()` écrit
+`~/Library/Application Support/Vialet/apps/<bundle id>.json` (`HubManifest`), puis envoie la
+notification distribuée `fr.vialet.apps.changed` :
+
+```json
+{
+  "actions" : [ { "id" : "new", "shortcut" : "⌘N", "symbol" : "plus", "title" : "Nouvelle tâche" } ],
+  "appPath" : "/Applications/Pico.app",
+  "bundleIdentifier" : "fr.vialet.pico",
+  "displayName" : "Pico",
+  "format" : 1,
+  "glyph" : "M 28 52 L 44 68 L 74 34",
+  "name" : "Pico",
+  "palette" : { "accent" : "#2F6FEB", "background" : "#2F6FEB", "deep" : "#00001F",
+                "night" : "#0F1A2F", "nightInk" : "#C4D8FD", "pale" : "#EBF2FF" },
+  "repository" : "avialet/pico",
+  "scheme" : "pico",
+  "site" : "https://pico.vialet.app",
+  "strokeDeep" : false,
+  "version" : "0.2.0"
+}
+```
+
+Tous les champs sont obligatoires sauf `shortcut` (raccourci de l'app, pour information). Les
+teintes sont en `#RRGGBB`. Un lecteur ignore les champs inconnus et lit un format plus récent pour
+les champs qu'il connaît : un ajout garde le format, un changement de sens le monte.
+`HubManifest.decode` retire les actions à l'identifiant invalide ou réservé ;
+`HubManifest.loadAll(from:)` lit un dossier entier.
 
 ## Raccourci et panneau flottant
 
