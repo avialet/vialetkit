@@ -7,6 +7,16 @@ public enum AppInfo {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0"
     }
 
+    /// Numero de build (CFBundleVersion), sinon la version.
+    public static var build: String {
+        Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? version
+    }
+
+    /// Mention de copyright (NSHumanReadableCopyright), sinon vide.
+    public static var copyright: String {
+        Bundle.main.infoDictionary?["NSHumanReadableCopyright"] as? String ?? ""
+    }
+
     public static var semanticVersion: SemanticVersion {
         SemanticVersion(string: version) ?? SemanticVersion(0)
     }

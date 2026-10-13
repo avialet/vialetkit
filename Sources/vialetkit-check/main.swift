@@ -9,4 +9,5 @@ run([
     paletteTests,
     paletteMixTests,
     glyphTests,
+    appIdentityTests,
 ])
