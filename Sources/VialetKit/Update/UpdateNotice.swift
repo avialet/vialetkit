@@ -115,6 +115,8 @@ public struct UpdateNotice: View {
         .background(shape.fill(Self.background))
         .overlay(shape.strokeBorder(Theme.accent.opacity(0.18), lineWidth: 1))
         .clipShape(shape)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(Text(verbatim: Self.label(mode, appName: updater.configuration.displayName)))
     }
 
     /// Fond : `accentPale` en clair, `accentNight` en sombre.
@@ -142,6 +144,7 @@ public struct UpdateNotice: View {
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(Theme.danger)
                 .frame(width: 26, height: 26)
+                .accessibilityHidden(true)
         case .progress where configuration.glyph.isEmpty:
             ProgressView().controlSize(.small).frame(width: 26, height: 26)
         default:
@@ -150,6 +153,7 @@ public struct UpdateNotice: View {
                     .font(.system(size: 20, weight: .semibold))
                     .foregroundStyle(Theme.accent)
                     .frame(width: 26, height: 26)
+                    .accessibilityHidden(true)
             } else {
                 Image(nsImage: GlyphImage.plate(Theme.palette, glyph: configuration.glyph, pixels: 78,
                                                 strokeDeep: configuration.strokeDeep))
@@ -161,18 +165,31 @@ public struct UpdateNotice: View {
         }
     }
 
+    /// Titre du bandeau.
+    nonisolated static func headline(_ mode: Mode, appName name: String) -> String {
+        switch mode {
+        case .available(let release): "\(name) \(release.version) est disponible"
+        case .updated(let version, _): "\(name) a \u{00E9}t\u{00E9} mis \u{00E0} jour en \(version)"
+        case .progress(let state): UpdateText.status(state, appName: name)
+        case .failure(let message): message
+        }
+    }
+
+    /// Libelle d'accessibilite du bandeau (VoiceOver), avant ses boutons.
+    nonisolated static func label(_ mode: Mode, appName: String) -> String {
+        if case .failure(let message) = mode { return "\u{00C9}chec de la mise \u{00E0} jour : \(message)" }
+        return "Mise \u{00E0} jour : " + headline(mode, appName: appName)
+    }
+
     @ViewBuilder
     private func title(_ mode: Mode) -> some View {
         let name = updater.configuration.displayName
         switch mode {
-        case .available(let release):
-            Text(verbatim: "\(name) \(release.version) est disponible")
+        case .available, .updated:
+            Text(verbatim: Self.headline(mode, appName: name))
                 .font(Theme.display(15, weight: .bold)).foregroundStyle(Self.titleColor).lineLimit(1)
-        case .updated(let version, _):
-            Text(verbatim: "\(name) a \u{00E9}t\u{00E9} mis \u{00E0} jour en \(version)")
-                .font(Theme.display(15, weight: .bold)).foregroundStyle(Self.titleColor).lineLimit(1)
-        case .progress(let state):
-            Text(verbatim: UpdateText.status(state, appName: name))
+        case .progress:
+            Text(verbatim: Self.headline(mode, appName: name))
                 .font(Theme.ui(13, weight: .semibold)).foregroundStyle(Theme.ink).lineLimit(1)
                 .monospacedDigit()
         case .failure(let message):

@@ -201,4 +201,15 @@ let updateNoticeTests: (String, [Test]) = ("UpdateNotice", [
             expectEqual(UpdateNotice.mode(for: updater), .available(release), "une recherche demandee remplace l'echec")
         }
     },
+    Test("noticeAccessibilityLabel") {
+        let release = sample(SemanticVersion(0, 3, 0))
+        expectEqual(UpdateNotice.label(.available(release), appName: "All\u{00E8}ge"),
+                    "Mise \u{00E0} jour : All\u{00E8}ge 0.3.0 est disponible")
+        expectEqual(UpdateNotice.label(.updated(SemanticVersion(0, 3, 0), nil), appName: "Pico"),
+                    "Mise \u{00E0} jour : Pico a \u{00E9}t\u{00E9} mis \u{00E0} jour en 0.3.0")
+        expectEqual(UpdateNotice.label(.failure("Corrompu"), appName: "Pico"),
+                    "\u{00C9}chec de la mise \u{00E0} jour : Corrompu")
+        expectEqual(UpdateNotice.label(.progress(.verifying), appName: "Pico"),
+                    "Mise \u{00E0} jour : V\u{00E9}rification du fichier\u{2026}")
+    },
 ])
