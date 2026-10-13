@@ -224,7 +224,7 @@ public final class Updater {
             do {
                 let release = try await Self.fetchLatest(configuration)
                 lastCheck = Date()
-                UserDefaults.standard.set(lastCheck, forKey: configuration.lastCheckKey)
+                defaults?.set(lastCheck, forKey: configuration.lastCheckKey)
                 // Une verification silencieuse ne remplace pas une installation lancee entre-temps.
                 guard fetchIsUserInitiated || !isBusy else { return }
                 apply(latest: release)
