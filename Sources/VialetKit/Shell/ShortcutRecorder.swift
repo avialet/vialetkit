@@ -23,7 +23,7 @@ public struct ShortcutRecorder: View {
             .foregroundStyle(recording ? .white : Theme.ink)
             .padding(.horizontal, 14).padding(.vertical, 8)
             .frame(minWidth: 170)
-            .background(Capsule().fill(recording ? AnyShapeStyle(Theme.sea.gradient) : AnyShapeStyle(Theme.ink.opacity(0.06))))
+            .background(Capsule().fill(recording ? AnyShapeStyle(Theme.accent.gradient) : AnyShapeStyle(Theme.ink.opacity(0.06))))
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)

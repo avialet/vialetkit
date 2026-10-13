@@ -52,3 +52,11 @@ let paletteTests: (String, [Test]) = ("Palette", [
         expectEqual(Theme.Shadow.panel.radius, 18)
     },
 ])
+
+let paletteMixTests: (String, [Test]) = ("PaletteMix", [
+    Test("mixBlendsPerChannel") {
+        expectEqual(AccentPalette.mix(0x000000, 0xFFFFFF, fraction: 0), 0x000000)
+        expectEqual(AccentPalette.mix(0x000000, 0xFFFFFF, fraction: 1), 0xFFFFFF)
+        expectEqual(AccentPalette.mix(0x14161B, 0x0F1A2F, fraction: 0.35), 0x121722)
+    },
+])

@@ -52,6 +52,12 @@ public enum Theme {
         Color(light: 0xFFFFFF, dark: palette.deep)
     }
 
+    /// Papier de `AmbientBackground` : `paper` en clair ; en sombre, `paper` melange
+    /// a `night` a 35 %.
+    @MainActor public static var ambientPaper: Color {
+        Color(light: paperLight, dark: AccentPalette.mix(paperDark, palette.night, fraction: 0.35))
+    }
+
     // MARK: Jetons
 
     /// Rayons des coins (style `.continuous`).
@@ -89,7 +95,9 @@ public enum Theme {
 
     // MARK: Couleurs fixes
 
-    public static let paper = Color(light: 0xF7F3EC, dark: 0x14161B)
+    static let paperLight: UInt32 = 0xF7F3EC
+    static let paperDark: UInt32 = 0x14161B
+    public static let paper = Color(light: paperLight, dark: paperDark)
     public static let sidebar = Color(light: 0xEEE7DB, dark: 0x1A1D23)
     public static let card = Color(light: 0xFFFDF9, dark: 0x21252D)
     public static let ink = Color(light: 0x1E2227, dark: 0xEDE9E2)

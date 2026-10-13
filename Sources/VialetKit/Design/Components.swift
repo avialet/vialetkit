@@ -118,15 +118,18 @@ public struct ProgressRing: View {
     }
 }
 
-/// Halo de la couleur d'accent sur fond papier.
+/// Halo de la couleur d'accent sur fond papier ; en sombre, le papier prend
+/// discretement la teinte de nuit de la palette (`Theme.ambientPaper`).
 public struct AmbientBackground: View {
-    let accent: Color
+    let override: Color?
 
-    public init(accent: Color) { self.accent = accent }
+    /// `accent` nil : `Theme.accent` (palette posee par `Theme.configure`).
+    public init(accent: Color? = nil) { self.override = accent }
 
     public var body: some View {
+        let accent = override ?? Theme.accent
         ZStack {
-            Theme.paper
+            Theme.ambientPaper
             RadialGradient(colors: [accent.opacity(0.22), accent.opacity(0)],
                            center: .topTrailing, startRadius: 0, endRadius: 620)
             RadialGradient(colors: [accent.opacity(0.07), .clear],

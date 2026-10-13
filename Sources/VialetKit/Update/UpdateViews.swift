@@ -20,7 +20,7 @@ public struct UpdateBanner: View {
             HStack(spacing: 10) {
                 Image(systemName: "arrow.down.circle.fill")
                     .font(.system(size: 18))
-                    .foregroundStyle(Theme.sea.gradient)
+                    .foregroundStyle(Theme.accent.gradient)
                 VStack(alignment: .leading, spacing: 1) {
                     Text("\(updater.configuration.displayName) \(release.version.description) est disponible")
                         .font(Theme.ui(12.5, weight: .bold)).foregroundStyle(Theme.ink)
@@ -29,7 +29,7 @@ public struct UpdateBanner: View {
                 Spacer(minLength: 0)
             }
             .padding(10)
-            .background(RoundedRectangle(cornerRadius: Theme.Radius.item, style: .continuous).fill(Theme.sea.opacity(0.13)))
+            .background(RoundedRectangle(cornerRadius: Theme.Radius.item, style: .continuous).fill(Theme.accentSelection))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -80,7 +80,7 @@ public struct UpdateCard: View {
                 action
             }
             if case .downloading(let p) = updater.state {
-                ProgressView(value: p).tint(Theme.sea)
+                ProgressView(value: p).tint(Theme.accent)
             }
             let text = UpdateText.status(updater.state, appName: name)
             if !text.isEmpty {
@@ -117,7 +117,7 @@ public struct UpdateCard: View {
     private var action: some View {
         if updater.available != nil {
             Button("Installer et relancer") { updater.install() }
-                .buttonStyle(.borderedProminent).tint(Theme.sea).controlSize(.small)
+                .buttonStyle(.borderedProminent).tint(Theme.accent).controlSize(.small)
                 .disabled(updater.isBusy)
         } else {
             Button("Rechercher") { updater.check() }
