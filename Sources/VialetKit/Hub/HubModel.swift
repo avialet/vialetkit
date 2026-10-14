@@ -325,11 +325,13 @@ public final class HubModel {
 
     // MARK: Apercu
 
-    /// Mode capture : liste et mises a jour fictives, sans reseau ni fichier.
+    #if DEBUG
+    /// Mode capture (DEBUG) : liste et mises a jour fictives, sans reseau ni fichier.
     public func preview(_ listing: HubListing, updates: [String: SemanticVersion], plates: [String: NSImage] = [:]) {
         isPreview = true
         self.listing = listing
         self.updates = updates
         plateCache = plates
     }
+    #endif
 }
