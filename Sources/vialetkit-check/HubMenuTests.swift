@@ -55,4 +55,21 @@ let hubMenuTests: (String, [Test]) = ("HubMenu", [
             expectEqual(image.size, NSSize(width: 18, height: 18))
         }
     },
+    Test("statusItemTrackingEndsWithItsInstallation") {
+        MainActor.assumeIsolated {
+            let model = HubModel(identity: vialetIdentity, updater: Updater(configuration: UpdaterConfiguration(vialetIdentity)))
+            model.preview(.empty, updates: [:])
+            let item = HubStatusItem(model: model, autosaveName: "VialetKitCheck")
+            item.install()
+            let first = item.trackingGeneration
+            expect(item.isInstalled)
+            item.install()
+            expectEqual(item.trackingGeneration, first, "deja posee : rien ne change")
+            item.remove()
+            expect(!item.isInstalled)
+            item.install()
+            expect(item.trackingGeneration > first + 1, "nouvelle pose : l'ancien suivi est perime")
+            item.remove()
+        }
+    },
 ])

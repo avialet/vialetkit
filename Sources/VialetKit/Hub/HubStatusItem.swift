@@ -16,7 +16,8 @@ public final class HubStatusItem {
     private var host: NSHostingView<AnyView>?
     /// Fermeture par perte du focus juste avant un clic sur l'icone : ce clic ne rouvre pas.
     private var lastDismiss = Date.distantPast
-    private var observation: Task<Void, Never>?
+    /// Jeton du suivi des mises a jour : un suivi d'une pose precedente (retiree puis reposee) s'eteint.
+    private(set) var trackingGeneration = 0
 
     public var isOpen: Bool { panel?.isVisible == true }
     public var isInstalled: Bool { item != nil }
@@ -51,7 +52,8 @@ public final class HubStatusItem {
             button.layer?.addSublayer(dot)
         }
         self.item = item
-        trackUpdates()
+        trackingGeneration += 1
+        trackUpdates(generation: trackingGeneration)
     }
 
     /// Retire l'icone et ferme le menu (l'app n'est plus hote).
@@ -62,16 +64,17 @@ public final class HubStatusItem {
         host = nil
         if let item { NSStatusBar.system.removeStatusItem(item) }
         item = nil
+        trackingGeneration += 1
     }
 
     /// Point de mise a jour : l'icone s'encoche, un point corail s'y pose (`Theme.coral`, la couleur
     /// des mises a jour dans les reglages des apps).
-    private func trackUpdates() {
-        guard item != nil else { return }
+    private func trackUpdates(generation: Int) {
+        guard item != nil, generation == trackingGeneration else { return }
         withObservationTracking {
             setDot(model.hasPendingUpdate)
         } onChange: { [weak self] in
-            Task { @MainActor in self?.trackUpdates() }
+            Task { @MainActor in self?.trackUpdates(generation: generation) }
         }
     }
 
