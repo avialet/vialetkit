@@ -46,7 +46,7 @@ public enum MenuBarMode: String, CaseIterable, Sendable {
     public func status(role: HubRole, hubName: String) -> String {
         guard self == .auto else { return "" }
         switch role {
-        case .vialet: return status(hubInstalled: true, hubName: hubName)
+        case .vialet: return "Masqu\u{00E9}e : \(hubName) tourne et rassemble les apps."
         case .alone: return "Visible : c'est la seule app vialet.app de ce Mac."
         case .host, .member: return "Masqu\u{00E9}e : l'ic\u{00F4}ne vialet.app de la barre des menus rassemble les apps."
         }
@@ -85,8 +85,10 @@ public final class MenuBarPresence {
     /// Role elu par `HubPresence` (nil sans election : `auto` suit seulement la presence de Vialet).
     /// Range sous `<App>HubRole` : au lancement suivant, le dernier role connu evite un clignotement.
     public internal(set) var hubRole: HubRole? {
-        didSet { if let hubRole { defaults.set(hubRole.stored, forKey: roleKey) } }
+        didSet { if persistsHubRole, let hubRole { defaults.set(hubRole.stored, forKey: roleKey) } }
     }
+    /// Faux pour une app lancee hors d'un dossier Applications : son role n'est pas memorise.
+    @ObservationIgnored var persistsHubRole = true
 
     /// Icone affichee. Le systeme y ecrit false quand l'utilisateur retire l'icone de la barre
     /// (Cmd-glisser) : le mode passe alors a `hidden` (et a `shown` dans l'autre sens).

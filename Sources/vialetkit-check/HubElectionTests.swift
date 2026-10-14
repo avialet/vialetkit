@@ -5,7 +5,7 @@ private let allege = "fr.vialet.allege", pince = "fr.vialet.pince", pico = "fr.v
 private let vialet = "fr.vialet.vialet"
 
 private func role(_ me: String, vialet hub: Bool = false, installed: Set<String>, running: Set<String> = []) -> HubRole {
-    HubElection.role(me: me, hubAppInstalled: hub, installed: installed, runningHosts: running)
+    HubElection.role(me: me, hubAppRunning: hub, installed: installed, runningHosts: running)
 }
 
 private func manifest(_ id: String, hub: Int?) -> HubManifest {
@@ -18,7 +18,7 @@ private func manifest(_ id: String, hub: Int?) -> HubManifest {
 }
 
 let hubElectionTests: (String, [Test]) = ("HubElection", [
-    Test("vialetInstalledHostsEverything") {
+    Test("runningVialetHostsEverything") {
         expectEqual(role(allege, vialet: true, installed: [allege]), .vialet)
         expectEqual(role(allege, vialet: true, installed: [allege, pince], running: [pince]), .vialet)
     },
@@ -69,7 +69,7 @@ let hubElectionTests: (String, [Test]) = ("HubElection", [
     },
     Test("statusExplainsTheRole") {
         expectEqual(MenuBarMode.auto.status(role: .vialet, hubName: "Vialet"),
-                    "Masqu\u{00E9}e : Vialet est install\u{00E9}e et rassemble les apps.")
+                    "Masqu\u{00E9}e : Vialet tourne et rassemble les apps.")
         expectEqual(MenuBarMode.auto.status(role: .alone, hubName: "Vialet"),
                     "Visible : c'est la seule app vialet.app de ce Mac.")
         expectEqual(MenuBarMode.auto.status(role: .host, hubName: "Vialet"),
@@ -138,7 +138,7 @@ private final class FakeHosting: HubHosting {
 
 let hubPresenceTests: (String, [Test]) = ("HubPresence", [
     Test("factsGiveTheRole") {
-        let facts = HubFacts(me: pince, hubAppInstalled: false, installed: [allege, pince],
+        let facts = HubFacts(me: pince, installed: [allege, pince, vialet],
                              capable: [allege, pince], running: [allege, pince])
         expectEqual(facts.role, .member(host: allege))
         var stopped = facts
@@ -147,9 +147,11 @@ let hubPresenceTests: (String, [Test]) = ("HubPresence", [
         var old = facts
         old.capable = [pince]
         expectEqual(old.role, .host, "Allege au kit ancien ne peut pas heberger : elle garde son icone, Pince rassemble")
+        expect(!facts.hubAppRunning, "Vialet installee mais arretee : election entre les apps")
         var withVialet = facts
-        withVialet.hubAppInstalled = true
-        expectEqual(withVialet.role, .vialet)
+        withVialet.running.insert(vialet)
+        expect(withVialet.hubAppRunning)
+        expectEqual(withVialet.role, .vialet, "Vialet tourne : elle rassemble")
     },
     Test("applyShowsAndHidesTheHubOnce") {
         MainActor.assumeIsolated {
@@ -181,6 +183,65 @@ let hubPresenceTests: (String, [Test]) = ("HubPresence", [
             let again = HubPresence(menuBar: MenuBarPresence(app: identity, defaults: defaults, hubLocator: { false }, observe: false),
                                     actions: AppActions(identity, open: {}), hosting: FakeHosting(), statusItem: nil, announce: {})
             expectEqual(again.role, .alone)
+        }
+    },
+    Test("onlyProcessesInsideApplicationsCount") {
+        let roots = [URL(fileURLWithPath: "/Applications"), URL(fileURLWithPath: "/Users/a/Applications")]
+        func p(_ id: String?, _ path: String?, terminated: Bool = false) -> HubProcess {
+            HubProcess(bundleIdentifier: id, bundleURL: path.map { URL(fileURLWithPath: $0) }, isTerminated: terminated)
+        }
+        let processes = [p(allege, "/Applications/Allege.app"), p(pince, "/Users/a/Applications/Pince.app"),
+                         p(vialet, "/Users/a/Downloads/Vialet.app"), p(pico, "/Applications/Pico.app", terminated: true),
+                         p("fr.vialet.brouillon", nil), p("com.apple.finder", "/System/Library/CoreServices/Finder.app"),
+                         p(nil, "/Applications/Sans.app"), p("fr.vialet.chuchote", "/Applications/Chuchote.app")]
+        expectEqual(HubElection.running(processes, roots: roots, ended: ["fr.vialet.chuchote"]), [allege, pince],
+                    "usurpation hors Applications, termine, sans bundle, autre editeur et app qui vient de quitter ecartes")
+        let facts = HubFacts(me: pince, installed: [allege, pince], capable: [allege, pince],
+                             running: HubElection.running(processes, roots: roots, ended: []))
+        expect(!facts.hubAppRunning, "un faux Vialet hors Applications ne prend pas la main")
+    },
+    Test("scansAreSpacedByTwoSeconds") {
+        let t0 = Date(timeIntervalSince1970: 1000)
+        expectEqual(HubElection.scanDelay(requested: 0.4, now: t0, lastScan: nil), 0.4)
+        expectEqual(HubElection.scanDelay(requested: 0.4, now: t0, lastScan: t0.addingTimeInterval(-10)), 0.4)
+        expectEqual(HubElection.scanDelay(requested: 0.4, now: t0, lastScan: t0.addingTimeInterval(-0.5)), 1.5)
+        expectEqual(HubElection.scanDelay(requested: 0.4, now: t0, lastScan: t0), 2)
+        expectEqual(HubElection.scanDelay(requested: 0.4, now: t0, lastScan: t0.addingTimeInterval(5)), 0.4, "horloge reculee")
+        expectEqual(HubElection.minScanInterval, 2)
+    },
+    Test("rememberedHostStepsAsideForARunningHost") {
+        expectEqual(HubElection.initialRole(stored: nil, me: pince, hubAppRunning: false, runningHosts: []), .alone)
+        expectEqual(HubElection.initialRole(stored: .host, me: pince, hubAppRunning: false, runningHosts: []), .host)
+        expectEqual(HubElection.initialRole(stored: .host, me: pince, hubAppRunning: false, runningHosts: [allege]),
+                    .member(host: allege), "Allege tient deja le menu")
+        expectEqual(HubElection.initialRole(stored: .host, me: allege, hubAppRunning: false, runningHosts: [pince]), .host,
+                    "plus petit bundle : reste hote")
+        expectEqual(HubElection.initialRole(stored: .host, me: pince, hubAppRunning: true, runningHosts: []), .vialet)
+        expectEqual(HubElection.initialRole(stored: .member(host: allege), me: pince, hubAppRunning: false, runningHosts: []),
+                    .member(host: allege))
+    },
+    Test("appOutsideApplicationsKeepsItsIconWithoutElection") {
+        MainActor.assumeIsolated {
+            let suite = "VialetKitCheck.HubOutside.\(UInt32.random(in: 0...UInt32.max))"
+            let defaults = UserDefaults(suiteName: suite)!
+            defer { defaults.removePersistentDomain(forName: suite) }
+            defaults.set("host", forKey: "PinceHubRole")
+            let identity = AppIdentity(name: "Pince", displayName: "Pince", repository: "avialet/pince",
+                                       bundleIdentifier: pince, palette: .sea, glyph: "")
+            let menuBar = MenuBarPresence(app: identity, defaults: defaults, hubLocator: { false }, observe: false)
+            let hosting = FakeHosting()
+            var announced = 0
+            let actions = AppActions(identity, open: {})
+            let presence = HubPresence(menuBar: menuBar, actions: actions, hosting: hosting, statusItem: nil,
+                                       announce: { announced += 1 })
+            presence.begin(inApplications: false)
+            expectEqual(presence.role, .alone)
+            expectEqual(menuBar.hubRole, .alone)
+            expect(menuBar.isInserted, "image disque, Telechargements : l'app garde son icone")
+            expectEqual(hosting.log, [], "ni menu rassembleur")
+            expectEqual(announced, 0, "ni election")
+            expect(!actions.hostsHub, "la fiche ne se dit pas hote")
+            expectEqual(defaults.string(forKey: "PinceHubRole"), "host", "le role memorise n'est pas ecrase")
         }
     },
 ])

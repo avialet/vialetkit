@@ -4,21 +4,22 @@ import AppKit
 /// publiee, Vialet installee ou quittee).
 public struct HubFacts: Equatable, Sendable {
     public var me: String
-    public var hubAppInstalled: Bool
     /// Apps vialet.app retenues comme installees (dossiers Applications et fiches validees).
     public var installed: Set<String>
     /// Parmi elles, celles qui peuvent heberger (fiche avec `hub`).
     public var capable: Set<String>
-    /// Bundle ids des apps en cours d'execution.
+    /// Bundle ids des apps vialet.app en cours, lancees depuis un dossier Applications (`HubElection.running`).
     public var running: Set<String>
 
-    public init(me: String, hubAppInstalled: Bool, installed: Set<String>, capable: Set<String>, running: Set<String>) {
-        self.me = me; self.hubAppInstalled = hubAppInstalled; self.installed = installed
-        self.capable = capable; self.running = running
+    public init(me: String, installed: Set<String>, capable: Set<String>, running: Set<String>) {
+        self.me = me; self.installed = installed; self.capable = capable; self.running = running
     }
 
+    /// L'app Vialet tourne (installee mais arretee, elle ne rassemble rien).
+    public var hubAppRunning: Bool { running.contains(MenuBarPresence.hubBundleIdentifier) }
+
     public var role: HubRole {
-        HubElection.role(me: me, hubAppInstalled: hubAppInstalled, installed: installed,
+        HubElection.role(me: me, hubAppRunning: hubAppRunning, installed: installed,
                          runningHosts: capable.intersection(running))
     }
 }
@@ -69,13 +70,20 @@ public final class HubPresence {
     private var hostingShown = false
     private var generation = 0
     private var pending: DispatchWorkItem?
+    /// Apps qui ont quitte pendant l'attente de la prochaine election.
+    private var pendingEnded: Set<String> = []
+    private var lastScan: Date?
     private var observers: [(NotificationCenter, NSObjectProtocol)] = []
 
     /// Delai avant une election (coalesce les notifications, laisse finir une app qui quitte).
     public nonisolated static let delay: TimeInterval = 0.4
+    /// Delai de la premiere election, au lancement.
+    public nonisolated static let firstDelay: TimeInterval = 1
 
     /// Demarre l'election : la fiche porte desormais `hub` (republiee), le dernier role connu est
     /// applique tout de suite, puis l'election est refaite. Un second appel rend l'instance existante.
+    /// Hors d'un dossier Applications (image disque, Telechargements, translocation), l'app garde son
+    /// icone : ni election, ni menu rassembleur.
     @discardableResult
     public static func start(menuBar: MenuBarPresence, actions: AppActions, updater: Updater) -> HubPresence {
         if let current { return current }
@@ -86,11 +94,8 @@ public final class HubPresence {
         let presence = HubPresence(menuBar: menuBar, actions: actions, hosting: HubStatusHosting(item: item),
                                    statusItem: item, announce: { HubPresence.postHostChanged() })
         current = presence
-        actions.hostsHub = true
-        actions.publish()
-        presence.apply(presence.role, announcing: false)
-        presence.observe()
-        presence.refresh(delay: 0)
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        presence.begin(inApplications: HubManifest.shouldPublish(bundleURL: Bundle.main.bundleURL, home: home))
         return presence
     }
 
@@ -102,6 +107,25 @@ public final class HubPresence {
         self.statusItem = statusItem
         self.announce = announce
         self.role = menuBar.hubRole ?? .alone
+    }
+
+    func begin(inApplications: Bool) {
+        guard inApplications else {
+            menuBar.persistsHubRole = false
+            apply(.alone, announcing: false)
+            return
+        }
+        actions.hostsHub = true
+        actions.publish()
+        // Dernier role connu, sauf un hote memorise alors qu'un autre tient deja le menu.
+        let running = Self.runningApps(ended: [])
+        let capable = HubElection.capable(manifests: HubManifest.loadAll(from: HubManifest.directory), installed: running)
+        let initial = HubElection.initialRole(stored: menuBar.hubRole, me: actions.identity.bundleIdentifier,
+                                              hubAppRunning: running.contains(MenuBarPresence.hubBundleIdentifier),
+                                              runningHosts: capable)
+        apply(initial, announcing: false)
+        observe()
+        refresh(delay: Self.firstDelay)
     }
 
     /// Applique un role : icone propre (via `MenuBarPresence`), icone et menu vialet.app, annonce aux
@@ -120,33 +144,44 @@ public final class HubPresence {
         if announcing, wasHosting != hostingShown { announce() }
     }
 
-    /// Refait l'election apres `delay` (les demandes rapprochees n'en font qu'une). `ended` : bundle id
-    /// d'une app qui vient de quitter, ecarte meme si le systeme la liste encore.
+    /// Refait l'election apres `delay`, et au moins `HubElection.minScanInterval` apres la precedente (les
+    /// demandes rapprochees n'en font qu'une). `ended` : bundle id d'une app qui vient de quitter, ecarte
+    /// meme si le systeme la liste encore (cumule jusqu'a l'election).
     public func refresh(delay: TimeInterval = HubPresence.delay, ended: String? = nil) {
+        if let ended { pendingEnded.insert(ended) }
         pending?.cancel()
         let work = DispatchWorkItem { [weak self] in
-            MainActor.assumeIsolated { self?.elect(ended: ended) }
+            MainActor.assumeIsolated { self?.elect() }
         }
         pending = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+        let wait = HubElection.scanDelay(requested: delay, now: Date(), lastScan: lastScan)
+        DispatchQueue.main.asyncAfter(deadline: .now() + wait, execute: work)
     }
 
-    private func elect(ended: String?) {
+    /// Apps `fr.vialet.*` en cours depuis un dossier Applications.
+    static func runningApps(ended: Set<String>) -> Set<String> {
+        let processes = NSWorkspace.shared.runningApplications.map {
+            HubProcess(bundleIdentifier: $0.bundleIdentifier, bundleURL: $0.bundleURL, isTerminated: $0.isTerminated)
+        }
+        let roots = HubManifest.applicationRoots(home: FileManager.default.homeDirectoryForCurrentUser)
+        return HubElection.running(processes, roots: roots, ended: ended)
+    }
+
+    private func elect() {
         generation += 1
+        lastScan = Date()
         let ticket = generation
+        let ended = pendingEnded
+        pendingEnded = []
         let me = actions.identity.bundleIdentifier
-        let hubAppInstalled = MenuBarPresence.locateHub()
         Task.detached(priority: .utility) {
             let found = HubScan.installed(catalog: nil)
             let installed = Set(found.apps.map(\.bundleIdentifier))
             let capable = HubElection.capable(manifests: found.manifests, installed: installed)
             await MainActor.run { [weak self] in
                 guard let self, ticket == self.generation else { return }
-                var running = Set(NSWorkspace.shared.runningApplications.filter { !$0.isTerminated }
-                    .compactMap(\.bundleIdentifier))
-                if let ended { running.remove(ended) }
-                let facts = HubFacts(me: me, hubAppInstalled: hubAppInstalled, installed: installed,
-                                     capable: capable, running: running)
+                let facts = HubFacts(me: me, installed: installed, capable: capable,
+                                     running: Self.runningApps(ended: ended))
                 self.apply(facts.role)
             }
         }
