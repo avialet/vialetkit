@@ -1,5 +1,23 @@
 import AppKit
 
+/// Quand Vialet propose une action : toujours (defaut), au repos ou pendant une activite de l'app
+/// (`HubManifest.active`, publie par `AppActions.publish(status:active:)`).
+public enum AppActionVisibility: String, Codable, CaseIterable, Sendable {
+    case always
+    /// Seulement quand l'app n'est pas active (« 1 h » d'Eveil).
+    case idle
+    /// Seulement pendant une activite (« Arreter »).
+    case active
+
+    public func isShown(active: Bool) -> Bool {
+        switch self {
+        case .always: true
+        case .idle: !active
+        case .active: active
+        }
+    }
+}
+
 /// Action rapide d'une app, ouverte par l'URL `<nom>://<id>` (`pico://new`, `chuchote://dicter`)
 /// et proposee par Vialet dans son menu.
 public struct AppAction: Codable, Equatable, Sendable {
@@ -11,12 +29,38 @@ public struct AppAction: Codable, Equatable, Sendable {
     public let symbol: String
     /// Raccourci de l'app tel qu'affiche (`⌘N`), pour information ; nil sans raccourci.
     public let shortcut: String?
+    /// Quand Vialet la propose (`always` par defaut, non ecrit dans la fiche).
+    public let visible: AppActionVisibility
 
-    public init(_ id: String, title: String, symbol: String, shortcut: String? = nil) {
+    public init(_ id: String, title: String, symbol: String, shortcut: String? = nil,
+                visible: AppActionVisibility = .always) {
         self.id = id
         self.title = title
         self.symbol = symbol
         self.shortcut = shortcut
+        self.visible = visible
+    }
+
+    private enum CodingKeys: String, CodingKey { case id, title, symbol, shortcut, visible }
+
+    /// `visible` absent ou inconnu (ajout d'un kit plus recent) : `always`.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        title = try c.decode(String.self, forKey: .title)
+        symbol = try c.decode(String.self, forKey: .symbol)
+        shortcut = try c.decodeIfPresent(String.self, forKey: .shortcut)
+        visible = (try? c.decodeIfPresent(String.self, forKey: .visible)).flatMap { $0 }
+            .flatMap(AppActionVisibility.init(rawValue:)) ?? .always
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(title, forKey: .title)
+        try c.encode(symbol, forKey: .symbol)
+        try c.encodeIfPresent(shortcut, forKey: .shortcut)
+        if visible != .always { try c.encode(visible, forKey: .visible) }
     }
 
     public static func isValidIdentifier(_ id: String) -> Bool {
@@ -79,6 +123,10 @@ public final class AppActions {
     /// Schema d'URL de l'app (CFBundleURLSchemes de son Info.plist) : par defaut son nom en minuscules.
     public let scheme: String
     public private(set) var actions: [AppAction] = []
+    /// Statut publie (`HubManifest.status`), garde d'une publication a l'autre.
+    public private(set) var status: String?
+    /// Activite en cours (`HubManifest.active`) : Vialet choisit les actions `idle` ou `active`.
+    public private(set) var isActive = false
     private var handlers: [String: @MainActor () -> Void] = [:]
     private let open: @MainActor () -> Void
     private let checkForUpdates: @MainActor () -> Void
@@ -127,7 +175,21 @@ public final class AppActions {
 
     /// Le manifeste de l'app pour Vialet, tel que `publish()` l'ecrit.
     public func manifest(appURL: URL = Bundle.main.bundleURL, version: String = AppInfo.version) -> HubManifest {
-        HubManifest(identity: identity, version: version, appPath: appURL.path, scheme: scheme, actions: actions)
+        var m = HubManifest(identity: identity, version: version, appPath: appURL.path, scheme: scheme, actions: actions)
+        m.status = status
+        m.active = isActive
+        return m
+    }
+
+    /// Change le statut affiche par Vialet sous le nom de l'app (60 caracteres au plus, une ligne ;
+    /// nil : l'accroche) et l'activite (actions `idle` / `active`), puis republie la fiche. A appeler
+    /// aux changements d'etat seulement (« Eveille jusqu'a 15 h 40 », pas un decompte).
+    @discardableResult
+    public func publish(status: String?, active: Bool, force: Bool = false,
+                        directory: URL = HubManifest.directory) -> Bool {
+        self.status = HubManifest.sanitizedStatus(status)
+        isActive = active
+        return publish(force: force, directory: directory)
     }
 
     /// Ecrit le manifeste dans `~/Library/Application Support/Vialet/apps/<bundle id>.json` et previent

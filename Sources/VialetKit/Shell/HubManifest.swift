@@ -18,6 +18,8 @@ public struct HubManifest: Codable, Equatable, Sendable {
     public static let maxActionTextLength = 60
     /// Longueur maximale du glyphe ; au-dela, il est retire (plaque sans trait).
     public static let maxGlyphLength = 2000
+    /// Longueur maximale du statut ; au-dela (ou avec un caractere de controle), il est retire.
+    public static let maxStatusLength = 60
 
     /// Teintes de l'app en `#RRGGBB` (voir `AccentPalette`).
     public struct Palette: Codable, Equatable, Sendable {
@@ -47,6 +49,10 @@ public struct HubManifest: Codable, Equatable, Sendable {
     public var strokeDeep: Bool
     public var palette: Palette
     public var actions: [AppAction]
+    /// Statut court (60 caracteres, une ligne), affiche par Vialet sous le nom de l'app ; facultatif.
+    public var status: String?
+    /// Activite en cours : Vialet montre les actions `idle` au repos, `active` pendant. Absent : false.
+    public var active: Bool
 
     public init(identity: AppIdentity, version: String, appPath: String, scheme: String, actions: [AppAction]) {
         format = Self.currentFormat
@@ -62,6 +68,65 @@ public struct HubManifest: Codable, Equatable, Sendable {
         strokeDeep = identity.strokeDeep
         palette = Palette(identity.palette)
         self.actions = actions
+        status = nil
+        active = false
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case format, bundleIdentifier, name, displayName, version, appPath, scheme, repository, site, glyph,
+             strokeDeep, palette, actions, status, active
+    }
+
+    /// Champs ajoutes en 0.2.6 (`status`, `active`) facultatifs : une fiche plus ancienne reste lue.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        format = try c.decode(Int.self, forKey: .format)
+        bundleIdentifier = try c.decode(String.self, forKey: .bundleIdentifier)
+        name = try c.decode(String.self, forKey: .name)
+        displayName = try c.decode(String.self, forKey: .displayName)
+        version = try c.decode(String.self, forKey: .version)
+        appPath = try c.decode(String.self, forKey: .appPath)
+        scheme = try c.decode(String.self, forKey: .scheme)
+        repository = try c.decode(String.self, forKey: .repository)
+        site = try c.decode(String.self, forKey: .site)
+        glyph = try c.decode(String.self, forKey: .glyph)
+        strokeDeep = try c.decode(Bool.self, forKey: .strokeDeep)
+        palette = try c.decode(Palette.self, forKey: .palette)
+        actions = try c.decode([AppAction].self, forKey: .actions)
+        status = (try? c.decodeIfPresent(String.self, forKey: .status)).flatMap { $0 }
+        active = (try? c.decodeIfPresent(Bool.self, forKey: .active)).flatMap { $0 } ?? false
+    }
+
+    /// Les actions a proposer maintenant (`visible` selon `active`).
+    public var visibleActions: [AppAction] {
+        actions.filter { $0.visible.isShown(active: active) }
+    }
+
+    /// Caracteres refuses dans un statut : controles, formats (dont les inversions de sens), separateurs
+    /// de ligne et de paragraphe.
+    static func isUnsafe(_ scalar: Unicode.Scalar) -> Bool {
+        switch scalar.properties.generalCategory {
+        case .control, .format, .lineSeparator, .paragraphSeparator: true
+        default: false
+        }
+    }
+
+    /// Statut lu : nil s'il est vide, trop long ou porte un caractere de controle.
+    static func validatedStatus(_ status: String?) -> String? {
+        guard let status, !status.trimmingCharacters(in: .whitespaces).isEmpty,
+              status.count <= maxStatusLength, !status.unicodeScalars.contains(where: isUnsafe) else { return nil }
+        return status
+    }
+
+    /// Statut a publier : controles remplaces par des espaces, blancs resserres, 60 caracteres au plus
+    /// (coupe par une ellipse) ; nil s'il est vide.
+    public static func sanitizedStatus(_ status: String?) -> String? {
+        guard let status else { return nil }
+        let cleaned = String(String.UnicodeScalarView(status.unicodeScalars.map { isUnsafe($0) ? " " : $0 }))
+        let words = cleaned.split(whereSeparator: \.isWhitespace)
+        guard !words.isEmpty else { return nil }
+        let text = words.joined(separator: " ")
+        return text.count <= maxStatusLength ? text : String(text.prefix(maxStatusLength - 1)) + "\u{2026}"
     }
 
     /// La palette, si toutes ses teintes sont lisibles.
@@ -95,6 +160,7 @@ public struct HubManifest: Codable, Equatable, Sendable {
                 && (a.shortcut?.count ?? 0) <= maxActionTextLength
         }.prefix(maxActions))
         if m.glyph.count > maxGlyphLength { m.glyph = "" }
+        m.status = validatedStatus(m.status)
         return m
     }
 

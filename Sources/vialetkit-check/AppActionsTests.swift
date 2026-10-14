@@ -251,3 +251,109 @@ let hubManifestTests: (String, [Test]) = ("HubManifest", [
         expectEqual(HubManifest.applicationRoots(home: home).map(\.path), ["/Applications", "/Users/a/Applications"])
     },
 ])
+
+let hubStatusTests: (String, [Test]) = ("HubStatus", [
+    Test("actionVisibilityDefaultsToAlways") {
+        let a = AppAction("new", title: "N", symbol: "plus")
+        expectEqual(a.visible, .always)
+        let text = String(decoding: try JSONEncoder().encode(a), as: UTF8.self)
+        expect(!text.contains("visible"), "always n'est pas ecrit : fiche identique a la 0.2.5 : \(text)")
+        let idle = AppAction("1h", title: "1 h", symbol: "sun.max", visible: .idle)
+        let idleText = String(decoding: try JSONEncoder().encode(idle), as: UTF8.self)
+        expect(idleText.contains("\"visible\":\"idle\""), idleText)
+        expectEqual(try JSONDecoder().decode(AppAction.self, from: try JSONEncoder().encode(idle)), idle)
+        let unknown = try JSONDecoder().decode(AppAction.self, from: Data(#"{"id":"a","title":"A","symbol":"x","visible":"nuit"}"#.utf8))
+        expectEqual(unknown.visible, .always, "valeur inconnue : toujours")
+        let absent = try JSONDecoder().decode(AppAction.self, from: Data(#"{"id":"a","title":"A","symbol":"x"}"#.utf8))
+        expectEqual(absent.visible, .always)
+    },
+    Test("visibilityMatrix") {
+        expect(AppActionVisibility.always.isShown(active: false))
+        expect(AppActionVisibility.always.isShown(active: true))
+        expect(AppActionVisibility.idle.isShown(active: false))
+        expect(!AppActionVisibility.idle.isShown(active: true))
+        expect(!AppActionVisibility.active.isShown(active: false))
+        expect(AppActionVisibility.active.isShown(active: true))
+    },
+    Test("statusAndActiveRoundTrip") {
+        var m = HubManifest(identity: pico, version: "0.2.0", appPath: "/Applications/Pico.app", scheme: "pico",
+                            actions: [AppAction("1h", title: "1 h", symbol: "sun.max", visible: .idle),
+                                      AppAction("arreter", title: "Arr\u{00EA}ter", symbol: "stop.circle", visible: .active),
+                                      AppAction("new", title: "N", symbol: "plus")])
+        expectEqual(m.status, nil)
+        expect(!m.active)
+        let plain = String(decoding: try m.encoded(), as: UTF8.self)
+        expect(!plain.contains("status"), "sans statut : champ absent")
+        expectEqual(m.visibleActions.map(\.id), ["1h", "new"])
+        m.status = "\u{00C9}veill\u{00E9} jusqu'\u{00E0} 15 h 40"
+        m.active = true
+        expectEqual(m.visibleActions.map(\.id), ["arreter", "new"])
+        let data = try m.encoded()
+        expectEqual(HubManifest.decode(data), m)
+        let text = String(decoding: data, as: UTF8.self)
+        expect(text.contains("\"active\" : true"), text)
+        expect(text.contains("\"format\" : 1"), "format inchange")
+    },
+    Test("oldManifestsReadAsIdleWithoutStatus") {
+        let json = """
+        {"format": 1, "bundleIdentifier": "fr.vialet.pico", "name": "Pico", "displayName": "Pico",
+         "version": "0.2.0", "appPath": "/Applications/Pico.app", "scheme": "pico", "repository": "avialet/pico",
+         "site": "https://pico.vialet.app", "glyph": "", "strokeDeep": false,
+         "palette": {"accent": "#2F6FEB", "background": "#2F6FEB", "deep": "#00001F", "pale": "#EBF2FF",
+                     "night": "#0F1A2F", "nightInk": "#C4D8FD"},
+         "actions": [{"id": "new", "title": "Nouvelle", "symbol": "plus"}]}
+        """
+        let m = HubManifest.decode(Data(json.utf8))
+        expectEqual(m?.status, nil)
+        expectEqual(m?.active, false)
+        expectEqual(m?.visibleActions.map(\.id), ["new"])
+    },
+    Test("untrustedStatusIsBounded") {
+        func decoded(_ status: String) -> String? {
+            var m = HubManifest(identity: pico, version: "0.2.0", appPath: "/Applications/Pico.app", scheme: "pico", actions: [])
+            m.status = status
+            return HubManifest.decode(try! m.encoded())?.status
+        }
+        expectEqual(decoded(String(repeating: "s", count: 60)), String(repeating: "s", count: 60))
+        expectEqual(decoded(String(repeating: "s", count: 61)), nil, "plus de 60 caracteres : retire")
+        expectEqual(decoded("deux\nlignes"), nil, "caractere de controle : retire")
+        expectEqual(decoded("tab\tulation"), nil)
+        expectEqual(decoded("\u{202E}inverse"), nil, "controle de direction : retire")
+        expectEqual(decoded("   "), nil, "vide : retire")
+        expectEqual(decoded("Actif"), "Actif")
+    },
+    Test("statusIsSanitizedWhenPublished") {
+        expectEqual(HubManifest.sanitizedStatus(nil), nil)
+        expectEqual(HubManifest.sanitizedStatus("  "), nil)
+        expectEqual(HubManifest.sanitizedStatus(" deux\nlignes\t "), "deux lignes")
+        let long = HubManifest.sanitizedStatus(String(repeating: "a", count: 80))
+        expectEqual(long?.count, 60)
+        expect(long?.hasSuffix("\u{2026}") == true, "coupe avec une ellipse")
+    },
+    Test("publishWithStatusRewritesTheManifest") {
+        try MainActor.assumeIsolated {
+            try withDirectory { dir in
+                let actions = AppActions(pico, open: {})
+                actions.register(AppAction("1h", title: "1 h", symbol: "sun.max", visible: .idle)) {}
+                expect(actions.publish(force: true, directory: dir))
+                let file = HubManifest.fileURL(bundleIdentifier: "fr.vialet.pico", in: dir)
+                expectEqual(HubManifest.decode(try Data(contentsOf: file))?.status, nil)
+                expect(actions.publish(status: "Actif\njusqu'au soir", active: true, force: true, directory: dir))
+                expectEqual(actions.status, "Actif jusqu'au soir")
+                expect(actions.isActive)
+                var read = HubManifest.decode(try Data(contentsOf: file))
+                expectEqual(read?.status, "Actif jusqu'au soir")
+                expectEqual(read?.active, true)
+                expectEqual(read?.visibleActions.count, 0)
+                // Une republication simple garde le statut.
+                expect(actions.publish(force: true, directory: dir))
+                read = HubManifest.decode(try Data(contentsOf: file))
+                expectEqual(read?.status, "Actif jusqu'au soir")
+                expect(actions.publish(status: nil, active: false, force: true, directory: dir))
+                read = HubManifest.decode(try Data(contentsOf: file))
+                expectEqual(read?.status, nil)
+                expectEqual(read?.active, false)
+            }
+        }
+    },
+])

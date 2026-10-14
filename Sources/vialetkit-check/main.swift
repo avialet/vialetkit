@@ -22,4 +22,5 @@ run([
     appURLTests,
     appActionsTests,
     hubManifestTests,
+    hubStatusTests,
 ])
