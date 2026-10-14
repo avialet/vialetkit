@@ -93,4 +93,22 @@ let surfacesTests: (String, [Test]) = ("Surfaces", [
             }
         }
     },
+    Test("settingsScreenWithDockPresence") {
+        MainActor.assumeIsolated {
+            withTestApp { identity, hotKey, updater in
+                let dock = DockPresence(app: identity, defaults: .standard, windows: { [] }, isHidden: { false },
+                                        apply: { _ in }, activate: {}, observe: false)
+                defer { UserDefaults.standard.removeObject(forKey: identity.key("DockMode")) }
+                let withDock = fittingSize(SettingsScreen(app: identity, hotKey: hotKey, updater: updater,
+                                                          menuBar: nil, dock: dock, hotKeyHint: "Indice"))
+                let without = fittingSize(SettingsScreen(app: identity, hotKey: hotKey, updater: updater,
+                                                         menuBar: nil, hotKeyHint: "Indice"))
+                expectEqual(withDock.width, 460)
+                expect(withDock.height > without.height + 15, "la ligne Dock s'ajoute : \(withDock.height) / \(without.height)")
+                let extra = fittingSize(SettingsScreen(app: identity, hotKey: hotKey, updater: updater, menuBar: nil,
+                                                       dock: dock, hotKeyHint: "Indice") { Color.clear.frame(height: 100) })
+                expect(extra.height > withDock.height + 90)
+            }
+        }
+    },
 ])

@@ -131,6 +131,7 @@ public struct SettingsScreen<Extra: View>: View {
     let hotKey: HotKeyController
     let updater: Updater
     let menuBar: MenuBarRow
+    let dock: DockPresence?
     let hotKeyEnabled: Binding<Bool>?
     let hotKeyHint: String
     let alwaysOnHint: String?
@@ -145,29 +146,31 @@ public struct SettingsScreen<Extra: View>: View {
     /// qu'une icone de barre des menus). `hotKeyEnabled` : raccourci facultatif, avec son interrupteur
     /// (l'app enregistre ou suspend le raccourci). `alwaysOnHint` remplace la legende de la carte
     /// Toujours la (fermer la fenetre ne quitte pas l'app) ; `updateNote` la phrase sur les echanges reseau
-    /// de la carte Mises a jour.
+    /// de la carte Mises a jour. `dock` : ligne « Icone dans le Dock » (voir `DockPresence`).
     public init(app: AppIdentity, hotKey: HotKeyController, updater: Updater, menuBar: MenuBarPresence?,
+                dock: DockPresence? = nil,
                 hotKeyEnabled: Binding<Bool>? = nil, hotKeyHint: String, alwaysOnHint: String? = nil,
                 updateNote: String? = nil, width: CGFloat = 460, @ViewBuilder extra: () -> Extra) {
         self.init(app: app, hotKey: hotKey, updater: updater, row: menuBar.map(MenuBarRow.presence) ?? .none,
-                  hotKeyEnabled: hotKeyEnabled, hotKeyHint: hotKeyHint, alwaysOnHint: alwaysOnHint,
+                  dock: dock, hotKeyEnabled: hotKeyEnabled, hotKeyHint: hotKeyHint, alwaysOnHint: alwaysOnHint,
                   updateNote: updateNote, width: width, extra: extra())
     }
 
     /// Ancienne forme : interrupteur << Icone dans la barre des menus >> sur `menuBarVisible`.
     public init(app: AppIdentity, hotKey: HotKeyController, updater: Updater, menuBarVisible: Binding<Bool>,
                 hotKeyHint: String, width: CGFloat = 460, @ViewBuilder extra: () -> Extra) {
-        self.init(app: app, hotKey: hotKey, updater: updater, row: .toggle(menuBarVisible), hotKeyEnabled: nil,
+        self.init(app: app, hotKey: hotKey, updater: updater, row: .toggle(menuBarVisible), dock: nil, hotKeyEnabled: nil,
                   hotKeyHint: hotKeyHint, alwaysOnHint: nil, updateNote: nil, width: width, extra: extra())
     }
 
-    private init(app: AppIdentity, hotKey: HotKeyController, updater: Updater, row: MenuBarRow,
+    private init(app: AppIdentity, hotKey: HotKeyController, updater: Updater, row: MenuBarRow, dock: DockPresence?,
                  hotKeyEnabled: Binding<Bool>?, hotKeyHint: String, alwaysOnHint: String?, updateNote: String?,
                  width: CGFloat, extra: Extra) {
         self.app = app
         self.hotKey = hotKey
         self.updater = updater
         self.menuBar = row
+        self.dock = dock
         self.hotKeyEnabled = hotKeyEnabled
         self.hotKeyHint = hotKeyHint
         self.alwaysOnHint = alwaysOnHint
@@ -218,6 +221,7 @@ public struct SettingsScreen<Extra: View>: View {
                     }
                 }
                 menuBarRow
+                dockRow
                 Text(verbatim: alwaysOnHint
                      ?? "Fermer la fen\u{00EA}tre ne quitte pas \(app.displayName) : le raccourci reste actif. \u{2318}Q pour quitter.")
                     .font(Theme.ui(12)).foregroundStyle(Theme.inkSoft)
@@ -276,14 +280,31 @@ extension SettingsScreen {
             EmptyView()
         }
     }
+
+    @ViewBuilder
+    private var dockRow: some View {
+        if let dock {
+            HStack {
+                Text("Ic\u{00F4}ne dans le Dock")
+                Spacer(minLength: 12)
+                Picker("Ic\u{00F4}ne dans le Dock", selection: Binding(get: { dock.mode }, set: { dock.mode = $0 })) {
+                    ForEach(DockMode.allCases, id: \.self) { Text($0.label).tag($0) }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .fixedSize()
+            }
+        }
+    }
 }
 
 extension SettingsScreen where Extra == EmptyView {
     /// Les quatre cartes standard, sans carte propre a l'app.
     public init(app: AppIdentity, hotKey: HotKeyController, updater: Updater, menuBar: MenuBarPresence?,
+                dock: DockPresence? = nil,
                 hotKeyEnabled: Binding<Bool>? = nil, hotKeyHint: String, alwaysOnHint: String? = nil,
                 updateNote: String? = nil, width: CGFloat = 460) {
-        self.init(app: app, hotKey: hotKey, updater: updater, menuBar: menuBar, hotKeyEnabled: hotKeyEnabled,
+        self.init(app: app, hotKey: hotKey, updater: updater, menuBar: menuBar, dock: dock, hotKeyEnabled: hotKeyEnabled,
                   hotKeyHint: hotKeyHint, alwaysOnHint: alwaysOnHint, updateNote: updateNote,
                   width: width) { EmptyView() }
     }
