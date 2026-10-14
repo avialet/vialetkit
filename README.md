@@ -14,8 +14,10 @@ app embarque à l'identique, écrit une seule fois.
   `ShortcutRecorder`), panneau flottant (`FloatingPanelController`), fenêtre principale
   (`WindowSummoner`), apparence (`AppearanceChoice`), ouverture à la connexion (`LaunchAtLogin`),
   version lue dans le bundle (`AppInfo`), panneau À propos (`AboutPanel`, `AboutCommands`),
-  icône de barre des menus (`MenuBarIcon`, `MenuBarPresence`), actions rapides par URL et fiche
-  pour l'app Vialet (`AppActions`, `HubManifest`).
+  icône de barre des menus (`MenuBarIcon`, `MenuBarPresence`), icône du Dock (`DockPresence`),
+  actions rapides par URL et fiche pour l'app Vialet (`AppActions`, `HubManifest`).
+- **Menu rassembleur** (`Hub/` : `HubModel`, `HubMenu`, `HubStatusItem`, `HubPresence`) : le menu
+  de Vialet, tenu par l'app Vialet ou, sans elle, par une des apps (élection d'un hôte unique).
 - **Surfaces communes** (`Wordmark`, `SectionHeader`, `PanelCard`, `KeyHint`, `ShortcutFooter`,
   `SettingsScreen`) et **mode capture** (`SnapshotRunner`), voir plus bas.
 - **Identité** (`AppIdentity`) : nom, dépôt, bundle, palette et glyphe déclarés une fois ;
@@ -27,7 +29,7 @@ Aucune dépendance externe. Swift 6, macOS 15 ou plus récent (les apps visent m
 
 ```swift
 // Package.swift
-.package(url: "https://github.com/avialet/vialetkit.git", .upToNextMinor(from: "0.2.5"))
+.package(url: "https://github.com/avialet/vialetkit.git", .upToNextMinor(from: "0.2.6"))
 // En 0.x, un changement cassant monte le mineur : epingler le mineur, pas `from:` (= < 1.0.0).
 ```
 
@@ -88,6 +90,9 @@ La 0.2.1 ajoute, sans rien casser, le relâchement du raccourci et le panneau qu
 le focus (voir « Raccourci et panneau flottant »).
 La 0.2.2 ajoute, sans rien casser, le bandeau d'annonce des mises à jour et leur journal
 (voir « Annoncer les mises à jour »).
+La 0.2.6 ajoute, sans rien casser, l'icône du Dock seulement pendant qu'une fenêtre est ouverte
+(`DockPresence`), le statut et les actions selon l'activité dans la fiche pour Vialet, et le menu
+rassembleur sans l'app Vialet (`HubPresence`).
 
 ## Annoncer les mises à jour
 
@@ -209,12 +214,47 @@ struct SettingsView: View {
 
 `menuBar:` donne la ligne « Icône dans la barre des menus : Automatique / Toujours / Jamais » et sa
 légende (voir plus bas) ; `nil` la retire (app qui n'est qu'une icône de barre des menus).
+`dock:` (facultatif, 0.2.6) ajoute la ligne « Icône dans le Dock : Pendant que la fenêtre est
+ouverte / Toujours » (voir « Icône du Dock »).
 `hotKeyEnabled:` (facultatif) ajoute l'interrupteur « Activer le raccourci » à la carte Raccourci
 global ; `alwaysOnHint:` remplace la légende de la carte Toujours là, `updateNote:` la phrase sur
 les échanges réseau de la carte Mises à jour (`UpdateCard(updater:note:)`). L'ancienne forme
 `menuBarVisible: $booleen` (simple interrupteur) reste acceptée.
 
 Sans carte propre à l'app, la fermeture `extra` s'omet.
+
+## Icône du Dock
+
+`DockPresence` range le choix sous `<App>DockMode` : `whileWindowOpen` (défaut) fait de l'app un
+accessoire (`.accessory` : ni Dock ni ⌘Tab) tant qu'aucune fenêtre titrée n'est ouverte, puis la
+passe en `.regular`, avec activation pour que la fenêtre passe devant, dès que la fenêtre
+principale, les Réglages ou À propos s'ouvrent ; elle redevient accessoire à la fermeture de la
+dernière. Une fenêtre réduite garde l'icône ; une app masquée (⌘H) aussi. Les panneaux flottants
+(`FloatingPanel`), les fenêtres de `MenuBarExtra` et de la barre d'état ne comptent pas. `always`
+garde l'icône. La décision est une fonction pure (`DockMode.showsIcon(windows:)` sur des
+`DockWindow`), relue aux notifications des fenêtres (clé, principale, fermeture, réduction,
+occlusion) et au retour de l'app.
+
+```swift
+extension DockPresence { static let shared = DockPresence(app: Brand.identity) }
+
+// applicationDidFinishLaunching (apres le mode capture)
+_ = DockPresence.shared
+
+// Finder, Spotlight : relancer l'app deja ouverte montre sa fenetre (deja dans le template)
+func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+    if !flag { WindowSummoner.show() }
+    return true
+}
+
+SettingsScreen(app: Brand.identity, hotKey: .shared, updater: .shared, menuBar: MenuBarPresence.shared,
+               dock: DockPresence.shared, hotKeyHint: "…")
+```
+
+Pour démarrer sans icône (sans clignotement), l'Info.plist de l'app
+(`<Nom>/Resources/Info.plist`) porte `<key>LSUIElement</key><true/>` ; si la fenêtre principale s'ouvre au lancement, l'icône apparaît avec elle.
+Sans fenêtre, l'app reste joignable par son icône de barre des menus, Vialet (ou le menu
+rassembleur), son raccourci et le Finder.
 
 ## Vialet : barre des menus et actions rapides
 
@@ -284,14 +324,72 @@ notification distribuée `fr.vialet.apps.changed` :
 }
 ```
 
-Tous les champs sont obligatoires sauf `shortcut` (raccourci de l'app, pour information). Les
-teintes sont en `#RRGGBB`. Un lecteur ignore les champs inconnus et lit un format plus récent pour
+Tous les champs sont obligatoires sauf `shortcut` (raccourci de l'app, pour information) et les
+ajouts de la 0.2.6, facultatifs (format toujours 1) :
+
+- `status` : texte court (60 caractères, une ligne) que Vialet affiche sous le nom de l'app, à la
+  place de l'accroche ; absent : l'accroche.
+- `active` : activité en cours (absent : `false`) ; Vialet pose une pastille à l'accent de l'app.
+- `visible`, par action : `always` (défaut, non écrit), `idle` (proposée au repos) ou `active`
+  (pendant une activité) ; une valeur inconnue vaut `always`.
+- `hub` : l'app peut tenir le menu rassembleur (voir plus bas).
+
+```swift
+AppActions.shared.register(AppAction("1h", title: "1 h", symbol: "sun.max", visible: .idle)) { … }
+AppActions.shared.register(AppAction("arreter", title: "Arrêter", symbol: "stop.circle", visible: .active)) { … }
+// a chaque changement d'etat (pas de decompte par minute) :
+AppActions.shared.publish(status: "Éveillé jusqu'à 15 h 40", active: true)
+AppActions.shared.publish(status: nil, active: false)
+```
+
+`publish(status:active:)` nettoie le statut (contrôles remplacés, blancs resserrés, coupé à
+60 caractères par une ellipse), le garde pour les publications suivantes, réécrit la fiche et
+envoie `fr.vialet.apps.changed` ; Vialet relit aussitôt. Les teintes sont en `#RRGGBB`. Un lecteur ignore les champs inconnus et lit un format plus récent pour
 les champs qu'il connaît : un ajout garde le format, un changement de sens le monte.
 Le dossier est modifiable par tout processus local : une fiche lue n'est pas digne de confiance.
 `HubManifest.decode` refuse plus de 64 Ko, retire les actions à l'identifiant invalide ou réservé
 et celles dont le libellé ou le symbole dépasse 60 caractères, garde 8 actions au plus et retire
-un glyphe de plus de 2 000 caractères ; `HubManifest.loadAll(from:)` lit un dossier entier, sans
-ouvrir un fichier trop gros. Le lecteur valide lui-même le reste (schéma, dépôt, chemin de l'app).
+un glyphe de plus de 2 000 caractères, et un statut vide, de plus de 60 caractères ou portant un
+caractère de contrôle (sauts de ligne, inversions de sens) ; `HubManifest.loadAll(from:)` lit un
+dossier entier, sans ouvrir un fichier trop gros.
+
+## Menu rassembleur sans Vialet
+
+Règle : une app garde son icône de barre des menus seulement si elle est seule ; dès qu'il y en a
+deux, toutes passent par **une** icône vialet.app, même sans l'app Vialet.
+
+- **Vialet installée** : elle est l'hôte, chaque app masque son icône (rôle `vialet`).
+- **Sinon, une seule app vialet.app installée** (fiches validées et apps `fr.vialet.*` des dossiers
+  Applications, Vialet exclue) : elle garde son icône (`alone`).
+- **Sinon** : parmi les apps en cours qui ont adopté `HubPresence` (fiche portant `hub`) et l'app
+  elle-même, le plus petit bundle id tient le menu (`host`) : l'icône vialet.app (plaque du hub en
+  tons, point corail de mise à jour) et le même menu que Vialet (apps, statuts, actions, mises à
+  jour, à découvrir, lien vers vialet.app ; ni Réglages ni Quitter). Les autres masquent leur icône
+  (`member`). Chaque app calcule seule le même résultat (`HubElection`, fonction pure) : pas de
+  messages à échanger, jamais deux hôtes durablement, jamais zéro tant qu'une app tourne.
+- L'élection est refaite (délai de 0,4 s, sans clignotement) au lancement et à la fin d'une app
+  `fr.vialet.*` (NSWorkspace), à `fr.vialet.apps.changed`, `fr.vialet.hub.changed` et
+  `fr.vialet.hub.host` (envoyée par une app qui prend ou quitte le rôle d'hôte, ou qui quitte).
+  Le dernier rôle connu (`<App>HubRole`) s'applique dès le lancement suivant.
+- `MenuBarPresence` en `auto` suit le rôle ; `shown` et `hidden` restent le choix de
+  l'utilisateur pour l'icône propre de l'app (une app en `shown` garde son icône en plus du menu).
+- Une app au kit plus ancien (< 0.2.6) ne connaît pas l'élection : elle garde son icône (sauf si
+  Vialet est installée) tant qu'elle n'est pas mise à jour, et ne tient jamais le menu.
+- L'hôte lit ce que lit Vialet (catalogue de vialet.app une fois par jour, dernière Release GitHub
+  de chaque app), seulement si sa recherche automatique de mises à jour est active : adapter la
+  phrase `updateNote:` de ses Réglages.
+
+Intégration, une ligne dans `applicationDidFinishLaunching` (après le mode capture et les
+`register` d'actions ; elle publie la fiche avec `hub`) :
+
+```swift
+HubPresence.start(menuBar: MenuBarPresence.shared, actions: AppActions.shared, updater: Updater.shared)
+```
+
+L'app Vialet utilise les mêmes pièces : `HubModel(identity:updater:announcesOwnUpdate:)`,
+`HubStatusItem(model:options:)` et `HubMenu(model:options:run:)` (`HubMenuOptions` : bandeau de
+mise à jour, Réglages, Quitter). Les règles de sûreté des fiches et du catalogue (`HubSafety`,
+`InstalledApp`, `Catalog`, `HubUpdates`) y sont reprises telles quelles. Le lecteur valide lui-même le reste (schéma, dépôt, chemin de l'app).
 
 ## Raccourci et panneau flottant
 
