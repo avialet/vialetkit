@@ -23,4 +23,13 @@ run([
     appActionsTests,
     hubManifestTests,
     hubStatusTests,
+    catalogTests,
+    installedAppTests,
+    listingTests,
+    updatesTests,
+    iconTests,
+    safetyTests,
+    hubElectionTests,
+    hubPresenceTests,
+    hubMenuTests,
 ])

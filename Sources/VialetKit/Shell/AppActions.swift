@@ -127,6 +127,8 @@ public final class AppActions {
     public private(set) var status: String?
     /// Activite en cours (`HubManifest.active`) : Vialet choisit les actions `idle` ou `active`.
     public private(set) var isActive = false
+    /// L'app peut tenir le menu rassembleur (pose par `HubPresence.start`) : la fiche le dit (`hub`).
+    public var hostsHub = false
     private var handlers: [String: @MainActor () -> Void] = [:]
     private let open: @MainActor () -> Void
     private let checkForUpdates: @MainActor () -> Void
@@ -178,6 +180,7 @@ public final class AppActions {
         var m = HubManifest(identity: identity, version: version, appPath: appURL.path, scheme: scheme, actions: actions)
         m.status = status
         m.active = isActive
+        m.hub = hostsHub ? HubElection.protocolVersion : nil
         return m
     }
 

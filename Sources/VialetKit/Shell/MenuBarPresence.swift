@@ -32,6 +32,26 @@ public enum MenuBarMode: String, CaseIterable, Sendable {
         }
     }
 
+    /// Avec l'election du menu rassembleur (`HubPresence`) : `auto` suit le role, `shown` et `hidden`
+    /// restent le choix de l'utilisateur.
+    public func isInserted(role: HubRole) -> Bool {
+        switch self {
+        case .auto: role.showsOwnIcon
+        case .shown: true
+        case .hidden: false
+        }
+    }
+
+    /// Legende du reglage selon le role ; vide hors `auto`.
+    public func status(role: HubRole, hubName: String) -> String {
+        guard self == .auto else { return "" }
+        switch role {
+        case .vialet: return status(hubInstalled: true, hubName: hubName)
+        case .alone: return "Visible : c'est la seule app vialet.app de ce Mac."
+        case .host, .member: return "Masqu\u{00E9}e : l'ic\u{00F4}ne vialet.app de la barre des menus rassemble les apps."
+        }
+    }
+
     /// Legende du reglage : ce que fait `auto` en ce moment ; vide pour les autres modes.
     public func status(hubInstalled: Bool, hubName: String) -> String {
         guard self == .auto else { return "" }
@@ -62,11 +82,16 @@ public final class MenuBarPresence {
     }
     /// Vialet installee (hors corbeille), au dernier `refresh()`.
     public private(set) var hubInstalled: Bool
+    /// Role elu par `HubPresence` (nil sans election : `auto` suit seulement la presence de Vialet).
+    /// Range sous `<App>HubRole` : au lancement suivant, le dernier role connu evite un clignotement.
+    public internal(set) var hubRole: HubRole? {
+        didSet { if let hubRole { defaults.set(hubRole.stored, forKey: roleKey) } }
+    }
 
     /// Icone affichee. Le systeme y ecrit false quand l'utilisateur retire l'icone de la barre
     /// (Cmd-glisser) : le mode passe alors a `hidden` (et a `shown` dans l'autre sens).
     public var isInserted: Bool {
-        get { mode.isInserted(hubInstalled: hubInstalled) }
+        get { hubRole.map { mode.isInserted(role: $0) } ?? mode.isInserted(hubInstalled: hubInstalled) }
         set {
             guard newValue != isInserted else { return }
             mode = newValue ? .shown : .hidden
@@ -80,6 +105,7 @@ public final class MenuBarPresence {
 
     private let defaults: UserDefaults
     private let modeKey: String
+    private let roleKey: String
     private let hubLocator: @MainActor () -> Bool
     @ObservationIgnored private var observers: [(NotificationCenter, NSObjectProtocol)] = []
 
@@ -90,6 +116,8 @@ public final class MenuBarPresence {
     init(app: AppIdentity, defaults: UserDefaults, hubLocator: @escaping @MainActor () -> Bool, observe: Bool) {
         self.defaults = defaults
         self.modeKey = app.key("MenuBarMode")
+        self.roleKey = app.key("HubRole")
+        self.hubRole = HubRole(stored: defaults.string(forKey: app.key("HubRole")))
         self.hubLocator = hubLocator
         let legacy = defaults.object(forKey: app.key("MenuBar")) as? Bool
         let mode = MenuBarMode.resolve(stored: defaults.string(forKey: modeKey), legacyVisible: legacy)
@@ -97,6 +125,11 @@ public final class MenuBarPresence {
         self.hubInstalled = hubLocator()
         defaults.set(mode.rawValue, forKey: modeKey)
         if observe { startObserving() }
+    }
+
+    /// Legende du reglage (vide hors `auto`).
+    public var status: String {
+        hubRole.map { mode.status(role: $0, hubName: "Vialet") } ?? mode.status(hubInstalled: hubInstalled, hubName: "Vialet")
     }
 
     /// Relit la presence de Vialet.

@@ -53,6 +53,9 @@ public struct HubManifest: Codable, Equatable, Sendable {
     public var status: String?
     /// Activite en cours : Vialet montre les actions `idle` au repos, `active` pendant. Absent : false.
     public var active: Bool
+    /// Protocole du menu rassembleur (`HubElection.protocolVersion`) : l'app (kit 0.2.6 ou plus, avec
+    /// `HubPresence`) peut tenir le menu vialet.app sans l'app Vialet. Absent : elle ne le peut pas.
+    public var hub: Int?
 
     public init(identity: AppIdentity, version: String, appPath: String, scheme: String, actions: [AppAction]) {
         format = Self.currentFormat
@@ -70,11 +73,12 @@ public struct HubManifest: Codable, Equatable, Sendable {
         self.actions = actions
         status = nil
         active = false
+        hub = nil
     }
 
     private enum CodingKeys: String, CodingKey {
         case format, bundleIdentifier, name, displayName, version, appPath, scheme, repository, site, glyph,
-             strokeDeep, palette, actions, status, active
+             strokeDeep, palette, actions, status, active, hub
     }
 
     /// Champs ajoutes en 0.2.6 (`status`, `active`) facultatifs : une fiche plus ancienne reste lue.
@@ -95,6 +99,7 @@ public struct HubManifest: Codable, Equatable, Sendable {
         actions = try c.decode([AppAction].self, forKey: .actions)
         status = (try? c.decodeIfPresent(String.self, forKey: .status)).flatMap { $0 }
         active = (try? c.decodeIfPresent(Bool.self, forKey: .active)).flatMap { $0 } ?? false
+        hub = (try? c.decodeIfPresent(Int.self, forKey: .hub)).flatMap { $0 }
     }
 
     /// Les actions a proposer maintenant (`visible` selon `active`).

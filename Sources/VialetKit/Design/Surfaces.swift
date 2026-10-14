@@ -270,7 +270,7 @@ extension SettingsScreen {
                 .labelsHidden()
                 .fixedSize()
             }
-            let status = presence.mode.status(hubInstalled: presence.hubInstalled, hubName: "Vialet")
+            let status = presence.status
             if !status.isEmpty {
                 Text(verbatim: status)
                     .font(Theme.ui(12)).foregroundStyle(Theme.inkSoft)
