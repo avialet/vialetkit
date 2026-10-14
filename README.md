@@ -233,7 +233,12 @@ dernière. Une fenêtre réduite garde l'icône ; une app masquée (⌘H) aussi.
 (`FloatingPanel`), les fenêtres de `MenuBarExtra` et de la barre d'état ne comptent pas. `always`
 garde l'icône. La décision est une fonction pure (`DockMode.showsIcon(windows:)` sur des
 `DockWindow`), relue aux notifications des fenêtres (clé, principale, fermeture, réduction,
-occlusion) et au retour de l'app.
+occlusion), au retour de l'app et, tant que l'icône est absente, après chaque événement.
+L'activation a lieu un tour après le passage en `.regular` et met devant la fenêtre principale
+(`WindowSummoner.mainWindow`), sinon la fenêtre clé. Lancée à l'ouverture de session (login item,
+lu dans l'événement d'ouverture : créer `DockPresence.shared` dans `applicationDidFinishLaunching`),
+l'app ne prend pas le focus tant que l'utilisateur n'y est pas venu. Revenue accessoire sans aucune
+fenêtre, elle rend la main à l'app précédente.
 
 ```swift
 extension DockPresence { static let shared = DockPresence(app: Brand.identity) }
@@ -351,14 +356,17 @@ Le dossier est modifiable par tout processus local : une fiche lue n'est pas dig
 et celles dont le libellé ou le symbole dépasse 60 caractères, garde 8 actions au plus et retire
 un glyphe de plus de 2 000 caractères, et un statut vide, de plus de 60 caractères ou portant un
 caractère de contrôle (sauts de ligne, inversions de sens) ; `HubManifest.loadAll(from:)` lit un
-dossier entier, sans ouvrir un fichier trop gros.
+dossier entier, sans ouvrir un fichier trop gros. Une action est aussi retirée si son libellé, son
+symbole ou son raccourci porte un caractère de contrôle. Le lecteur valide lui-même le reste
+(schéma, dépôt, chemin de l'app).
 
 ## Menu rassembleur sans Vialet
 
 Règle : une app garde son icône de barre des menus seulement si elle est seule ; dès qu'il y en a
 deux, toutes passent par **une** icône vialet.app, même sans l'app Vialet.
 
-- **Vialet installée** : elle est l'hôte, chaque app masque son icône (rôle `vialet`).
+- **Vialet tourne** (lancée depuis un dossier Applications) : elle est l'hôte, chaque app masque
+  son icône (rôle `vialet`). Installée mais arrêtée, elle ne rassemble rien : l'élection a lieu.
 - **Sinon, une seule app vialet.app installée** (fiches validées et apps `fr.vialet.*` des dossiers
   Applications, Vialet exclue) : elle garde son icône (`alone`).
 - **Sinon** : parmi les apps en cours qui ont adopté `HubPresence` (fiche portant `hub`) et l'app
@@ -367,14 +375,19 @@ deux, toutes passent par **une** icône vialet.app, même sans l'app Vialet.
   jour, à découvrir, lien vers vialet.app ; ni Réglages ni Quitter). Les autres masquent leur icône
   (`member`). Chaque app calcule seule le même résultat (`HubElection`, fonction pure) : pas de
   messages à échanger, jamais deux hôtes durablement, jamais zéro tant qu'une app tourne.
-- L'élection est refaite (délai de 0,4 s, sans clignotement) au lancement et à la fin d'une app
-  `fr.vialet.*` (NSWorkspace), à `fr.vialet.apps.changed`, `fr.vialet.hub.changed` et
-  `fr.vialet.hub.host` (envoyée par une app qui prend ou quitte le rôle d'hôte, ou qui quitte).
-  Le dernier rôle connu (`<App>HubRole`) s'applique dès le lancement suivant.
+- Seuls comptent les processus `fr.vialet.*` lancés depuis `/Applications` ou `~/Applications`
+  (liens résolus) : un bundle id usurpé ailleurs n'entre jamais dans l'élection.
+- L'élection est refaite (délai de 0,4 s, 2 s au moins entre deux lectures, sans clignotement) au
+  lancement et à la fin d'une app `fr.vialet.*` (NSWorkspace), à `fr.vialet.apps.changed`,
+  `fr.vialet.hub.changed` et `fr.vialet.hub.host` (envoyée par une app qui prend ou quitte le rôle
+  d'hôte, ou qui quitte). Au lancement, le dernier rôle connu (`<App>HubRole`) s'applique tout de
+  suite (sauf un `host` mémorisé quand un autre hôte tourne déjà), puis l'élection a lieu après 1 s.
+- Une app lancée hors d'un dossier Applications (image disque, Téléchargements, translocation)
+  garde son icône, sans élection ni menu rassembleur, et ne mémorise pas de rôle.
 - `MenuBarPresence` en `auto` suit le rôle ; `shown` et `hidden` restent le choix de
   l'utilisateur pour l'icône propre de l'app (une app en `shown` garde son icône en plus du menu).
 - Une app au kit plus ancien (< 0.2.6) ne connaît pas l'élection : elle garde son icône (sauf si
-  Vialet est installée) tant qu'elle n'est pas mise à jour, et ne tient jamais le menu.
+  Vialet est installée, ancienne règle) tant qu'elle n'est pas mise à jour, et ne tient jamais le menu.
 - L'hôte lit ce que lit Vialet (catalogue de vialet.app une fois par jour, dernière Release GitHub
   de chaque app), seulement si sa recherche automatique de mises à jour est active : adapter la
   phrase `updateNote:` de ses Réglages.
@@ -389,7 +402,7 @@ HubPresence.start(menuBar: MenuBarPresence.shared, actions: AppActions.shared, u
 L'app Vialet utilise les mêmes pièces : `HubModel(identity:updater:announcesOwnUpdate:)`,
 `HubStatusItem(model:options:)` et `HubMenu(model:options:run:)` (`HubMenuOptions` : bandeau de
 mise à jour, Réglages, Quitter). Les règles de sûreté des fiches et du catalogue (`HubSafety`,
-`InstalledApp`, `Catalog`, `HubUpdates`) y sont reprises telles quelles. Le lecteur valide lui-même le reste (schéma, dépôt, chemin de l'app).
+`InstalledApp`, `Catalog`, `HubUpdates`) y sont reprises telles quelles.
 
 ## Raccourci et panneau flottant
 
