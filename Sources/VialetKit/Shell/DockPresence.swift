@@ -174,5 +174,11 @@ public final class DockPresence {
                 MainActor.assumeIsolated { self?.schedule() }
             }
         }
+        // Une fenetre montree par une app accessoire non active (openWindow de SwiftUI, makeKeyAndOrderFront)
+        // ne devient ni cle ni visible au sens des notifications ci-dessus : la mise a jour des fenetres
+        // apres chaque evenement la voit. Lecture de quelques fenetres, politique posee seulement si elle change.
+        observers.append(center.addObserver(forName: NSApplication.didUpdateNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.update() }
+        })
     }
 }
