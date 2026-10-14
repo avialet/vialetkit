@@ -10,7 +10,7 @@ public enum DockMode: String, CaseIterable, Sendable {
 
     public var label: String {
         switch self {
-        case .whileWindowOpen: "Pendant que la fen\u{00EA}tre est ouverte"
+        case .whileWindowOpen: "Fen\u{00EA}tre ouverte"
         case .always: "Toujours"
         }
     }

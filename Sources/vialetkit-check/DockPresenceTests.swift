@@ -32,7 +32,7 @@ private final class FakeApp {
 let dockPresenceTests: (String, [Test]) = ("DockPresence", [
     Test("modesAndLabels") {
         expectEqual(DockMode.allCases, [.whileWindowOpen, .always])
-        expectEqual(DockMode.whileWindowOpen.label, "Pendant que la fen\u{00EA}tre est ouverte")
+        expectEqual(DockMode.whileWindowOpen.label, "Fen\u{00EA}tre ouverte")
         expectEqual(DockMode.always.label, "Toujours")
         expectEqual(DockMode.resolve(stored: nil), .whileWindowOpen)
         expectEqual(DockMode.resolve(stored: "always"), .always)
