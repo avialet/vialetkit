@@ -153,8 +153,8 @@ public struct HubManifest: Codable, Equatable, Sendable {
     }
 
     /// nil si les donnees depassent `maxFileSize`, si le JSON est illisible, sans format (>= 1) ou s'il
-    /// manque un champ. Les actions a l'identifiant invalide ou reserve, ou au libelle ou symbole trop
-    /// long, sont retirees ; `maxActions` au plus ; un glyphe trop long est retire.
+    /// manque un champ. Les actions a l'identifiant invalide ou reserve, au libelle, symbole ou raccourci
+    /// trop long ou portant un caractere de controle, sont retirees ; `maxActions` au plus ; un glyphe trop long est retire.
     public static func decode(_ data: Data) -> HubManifest? {
         guard data.count <= maxFileSize,
               var m = try? JSONDecoder().decode(HubManifest.self, from: data), m.format >= 1,
@@ -163,6 +163,7 @@ public struct HubManifest: Codable, Equatable, Sendable {
             AppAction.isValidIdentifier(a.id) && !AppURLCommand.reserved.contains(a.id)
                 && a.title.count <= maxActionTextLength && a.symbol.count <= maxActionTextLength
                 && (a.shortcut?.count ?? 0) <= maxActionTextLength
+                && ![a.title, a.symbol, a.shortcut ?? ""].contains { $0.unicodeScalars.contains(where: isUnsafe) }
         }.prefix(maxActions))
         if m.glyph.count > maxGlyphLength { m.glyph = "" }
         m.status = validatedStatus(m.status)

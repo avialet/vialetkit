@@ -356,4 +356,14 @@ let hubStatusTests: (String, [Test]) = ("HubStatus", [
             }
         }
     },
+    Test("actionTextsWithControlCharactersAreDropped") {
+        var m = HubManifest(identity: pico, version: "0.2.0", appPath: "/Applications/Pico.app", scheme: "pico",
+                            actions: [AppAction("a", title: "deux\nlignes", symbol: "plus"),
+                                      AppAction("b", title: "\u{202E}inverse", symbol: "plus"),
+                                      AppAction("c", title: "Ok", symbol: "plus", shortcut: "\u{2318}\tN"),
+                                      AppAction("d", title: "Ok", symbol: "plus\u{0000}"),
+                                      AppAction("e", title: "Nouvelle t\u{00E2}che", symbol: "plus", shortcut: "\u{2318}N")])
+        m.status = nil
+        expectEqual(HubManifest.decode(try m.encoded())?.actions.map(\.id), ["e"])
+    },
 ])
