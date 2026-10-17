@@ -155,7 +155,7 @@ public final class GlobalHotKey {
                 return OSStatus(eventNotHandledErr)
             }
             DispatchQueue.main.async {
-                MainActor.assumeIsolated { GlobalHotKey.shared.handle(kind) }
+                MainActor.runOnMainThread { GlobalHotKey.shared.handle(kind) }
             }
             return noErr
         }, specs.count, &specs, nil, nil)

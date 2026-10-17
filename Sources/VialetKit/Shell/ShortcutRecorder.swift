@@ -35,7 +35,7 @@ public struct ShortcutRecorder: View {
         recording = true
         invalid = false
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            let consumed = MainActor.assumeIsolated { handle(event) }
+            let consumed = MainActor.runOnMainThread { handle(event) }
             return consumed ? nil : event
         }
     }

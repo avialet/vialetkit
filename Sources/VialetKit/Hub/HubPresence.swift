@@ -151,7 +151,7 @@ public final class HubPresence {
         if let ended { pendingEnded.insert(ended) }
         pending?.cancel()
         let work = DispatchWorkItem { [weak self] in
-            MainActor.assumeIsolated { self?.elect() }
+            MainActor.runOnMainThread { self?.elect() }
         }
         pending = work
         let wait = HubElection.scanDelay(requested: delay, now: Date(), lastScan: lastScan)
@@ -191,7 +191,7 @@ public final class HubPresence {
         let distributed = DistributedNotificationCenter.default()
         for name in [MenuBarPresence.hubChangedNotification, HubManifest.appsChangedNotification, HubElection.hostNotification] {
             let token = distributed.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
-                MainActor.assumeIsolated { self?.refresh() }
+                MainActor.runOnMainThread { self?.refresh() }
             }
             observers.append((distributed, token))
         }
@@ -201,14 +201,14 @@ public final class HubPresence {
             let token = workspace.addObserver(forName: name, object: nil, queue: .main) { [weak self] note in
                 let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
                 guard let id = app?.bundleIdentifier, id.hasPrefix(InstalledApp.bundlePrefix) else { return }
-                MainActor.assumeIsolated { self?.refresh(ended: terminated ? id : nil) }
+                MainActor.runOnMainThread { self?.refresh(ended: terminated ? id : nil) }
             }
             observers.append((workspace, token))
         }
         let local = NotificationCenter.default
         let quit = local.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { _ in
             // Les autres apps refont l'election sans attendre la fin du processus.
-            MainActor.assumeIsolated { HubPresence.postHostChanged() }
+            MainActor.runOnMainThread { HubPresence.postHostChanged() }
         }
         observers.append((local, quit))
     }

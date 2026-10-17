@@ -32,7 +32,7 @@ public enum WindowSummoner {
         }
         if focus {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                MainActor.assumeIsolated { onFocus?() }
+                MainActor.runOnMainThread { onFocus?() }
             }
         }
     }

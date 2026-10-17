@@ -143,21 +143,22 @@ public final class HubModel {
         reloadTask?.cancel()
         reloadTask = Task.detached(priority: .utility) { [weak self] in
             let listing = HubScan.listing(catalog: catalog)
-            await MainActor.run {
-                guard let self, !Task.isCancelled else { return }
-                if listing != self.listing {
-                    self.listing = listing
-                    self.plateCache = [:]
-                }
-            }
+            await self?.apply(listing)
         }
+    }
+
+    /// Resultat d'une relecture, ignore si elle a ete annulee entre-temps.
+    private func apply(_ listing: HubListing) {
+        guard !Task.isCancelled, listing != self.listing else { return }
+        self.listing = listing
+        plateCache = [:]
     }
 
     private func observe() {
         guard observers.isEmpty else { return }
         let distributed = DistributedNotificationCenter.default()
         let onApps = distributed.addObserver(forName: HubManifest.appsChangedNotification, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.reload() }
+            MainActor.runOnMainThread { self?.reload() }
         }
         observers.append((distributed, onApps))
         let workspace = NSWorkspace.shared.notificationCenter
@@ -165,7 +166,7 @@ public final class HubModel {
             let token = workspace.addObserver(forName: name, object: nil, queue: .main) { [weak self] note in
                 let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
                 guard app?.bundleIdentifier?.hasPrefix(InstalledApp.bundlePrefix) == true else { return }
-                MainActor.assumeIsolated { self?.reload() }
+                MainActor.runOnMainThread { self?.reload() }
             }
             observers.append((workspace, token))
         }

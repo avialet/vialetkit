@@ -120,7 +120,7 @@ public final class DockPresence {
                       if DockPresence.deactivates(showsIcon: shows, visibleKeyableWindows: keyable) { NSApp.deactivate() }
                   },
                   // Un tour plus tard : la politique `.regular` doit etre prise avant l'activation.
-                  activate: { DispatchQueue.main.async { MainActor.assumeIsolated { DockPresence.bringWindowForward() } } },
+                  activate: { DispatchQueue.main.async { MainActor.runOnMainThread { DockPresence.bringWindowForward() } } },
                   launchedAsLoginItem: DockPresence.isLaunchedAsLoginItem(),
                   observe: true)
     }
@@ -205,7 +205,7 @@ public final class DockPresence {
         guard !scheduled else { return }
         scheduled = true
         DispatchQueue.main.async { [weak self] in
-            MainActor.assumeIsolated {
+            MainActor.runOnMainThread {
                 self?.scheduled = false
                 self?.update()
             }
@@ -222,18 +222,18 @@ public final class DockPresence {
         ]
         observers = names.map { name in
             center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
-                MainActor.assumeIsolated { self?.schedule() }
+                MainActor.runOnMainThread { self?.schedule() }
             }
         }
         observers.append(center.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.noteBecameActive() }
+            MainActor.runOnMainThread { self?.noteBecameActive() }
         })
         // Une fenetre montree par une app accessoire non active (openWindow de SwiftUI, makeKeyAndOrderFront)
         // ne devient ni cle ni visible au sens des notifications ci-dessus : la mise a jour des fenetres
         // apres chaque evenement la voit. Seulement tant que l'icone est absente (apparition d'une fenetre) ;
         // les fermetures passent par willClose.
         observers.append(center.addObserver(forName: NSApplication.didUpdateNotification, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { if self?.showsIcon == false { self?.update() } }
+            MainActor.runOnMainThread { if self?.showsIcon == false { self?.update() } }
         })
     }
 }

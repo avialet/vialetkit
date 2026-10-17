@@ -32,4 +32,5 @@ run([
     hubElectionTests,
     hubPresenceTests,
     hubMenuTests,
+    mainThreadTests,
 ])

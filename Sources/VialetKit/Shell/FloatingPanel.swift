@@ -116,7 +116,7 @@ public final class FloatingPanelController<Content: View> {
             ctx.duration = 0.1
             panel.animator().alphaValue = 0
         }, completionHandler: { [weak self] in
-            MainActor.assumeIsolated {
+            MainActor.runOnMainThread {
                 if let self, self.openCount != token { return }
                 panel.orderOut(nil)
             }

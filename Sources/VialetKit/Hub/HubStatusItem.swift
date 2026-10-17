@@ -124,7 +124,7 @@ public final class HubStatusItem {
     /// Ferme le menu, puis lance `action` (ouvrir une app, un lien...).
     public func run(_ action: @escaping @MainActor () -> Void) {
         close()
-        DispatchQueue.main.async { MainActor.assumeIsolated { action() } }
+        DispatchQueue.main.async { MainActor.runOnMainThread { action() } }
     }
 
     private func makePanel() -> FloatingPanel {

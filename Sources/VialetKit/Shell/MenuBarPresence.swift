@@ -144,10 +144,10 @@ public final class MenuBarPresence {
         let local = NotificationCenter.default
         let distributed = DistributedNotificationCenter.default()
         let onActive = local.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.refresh() }
+            MainActor.runOnMainThread { self?.refresh() }
         }
         let onHub = distributed.addObserver(forName: Self.hubChangedNotification, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.refresh() }
+            MainActor.runOnMainThread { self?.refresh() }
         }
         observers = [(local, onActive), (distributed, onHub)]
     }
